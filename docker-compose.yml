@@ -1,0 +1,13 @@
+# Solo para desarrollo local. En staging/producción se usa MongoDB Atlas.
+services:
+  mongo:
+    image: mongo:8
+    container_name: barberia-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
