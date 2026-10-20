@@ -1,5 +1,6 @@
 import { Schema, model, InferSchemaType, HydratedDocument, Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { limpiarJSON } from '../utils/json';
 
 export const ROLES = ['admin', 'barbero'] as const;
 export type Rol = (typeof ROLES)[number];
@@ -24,12 +25,9 @@ usuarioSchema.methods.verificarPin = function (pin: string) {
 usuarioSchema.statics.hashPin = (pin: string) => bcrypt.hash(pin, 10);
 
 usuarioSchema.set('toJSON', {
-  transform: (_doc, ret: Record<string, unknown>) => {
-    ret.id = String(ret._id);
-    delete ret._id;
-    delete ret.__v;
+  transform: (doc, ret: Record<string, unknown>) => {
     delete ret.pinHash;
-    return ret;
+    return limpiarJSON(doc, ret);
   },
 });
 

@@ -1,0 +1,24 @@
+# Blueprint de Render: https://render.com/docs/blueprint-spec
+# Un solo servicio sirve la API (/api) y la web compilada (frontend/dist).
+services:
+  - type: web
+    name: barberia-staging
+    runtime: node
+    plan: free
+    region: virginia
+    branch: develop # cada push a develop se publica solo en staging
+    autoDeploy: true
+    buildCommand: npm run build:deploy
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: NODE_VERSION
+        value: "22"
+      - key: JWT_EXPIRES_IN
+        value: 12h
+      - key: JWT_SECRET
+        generateValue: true # Render genera uno aleatorio, distinto al de local
+      - key: MONGODB_URI
+        sync: false # se carga a mano en Render (la de MongoDB Atlas), nunca en el repo

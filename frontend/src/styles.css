@@ -283,5 +283,7 @@ body.barbero::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-ar
 
 /* Agregados para la app React */
 #root{min-height:100%}
+/* En el prototipo el padre tenía altura fija; acá #root solo tiene min-height, así que el 100% no se resuelve */
+.login,.phone,.shell{min-height:100vh}
 .side > .grow{flex:1}
 .lbtn:disabled{opacity:.6;cursor:wait}

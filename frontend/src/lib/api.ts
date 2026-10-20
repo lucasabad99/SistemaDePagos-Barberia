@@ -15,18 +15,31 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = tokenStore.get();
-  const res = await fetch(BASE + path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(BASE + path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch {
+    throw new ApiError(0, 'Sin conexión con el servidor');
+  }
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && token) {
+    // Token vencido: cerramos sesión y volvemos al login.
+    tokenStore.clear();
+    window.dispatchEvent(new Event('auth:expired'));
+  }
   if (!res.ok) throw new ApiError(res.status, data.error ?? 'Error de conexión');
   return data as T;
 }
+
+export const post = <T>(path: string, body?: unknown) =>
+  api<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 
 export type Rol = 'admin' | 'barbero';
 export interface Usuario {
@@ -36,4 +49,50 @@ export interface Usuario {
   rol: Rol;
   comision: number;
   activo: boolean;
+}
+
+export interface Servicio {
+  id: string;
+  nombre: string;
+  precio: number;
+}
+export interface Producto {
+  id: string;
+  nombre: string;
+  precio: number;
+  stock: number;
+  min: number;
+}
+export interface Config {
+  negocio: string;
+  recargoPct: number;
+  comisionProducto: number;
+}
+export interface Catalogo {
+  servicios: Servicio[];
+  productos: Producto[];
+  config: Config;
+}
+
+export type Metodo = 'efectivo' | 'transferencia';
+export type EstadoVenta = 'en_barbero' | 'entregado' | 'pendiente' | 'verificado' | 'anulada';
+export interface Venta {
+  id: string;
+  num: number;
+  fecha: string;
+  barbero: { id: string; nombre: string; rol: Rol };
+  items: { tipo: 'servicio' | 'producto'; refId: string; nombre: string; precio: number; cant: number }[];
+  metodo: Metodo;
+  subtotal: number;
+  recargo: number;
+  total: number;
+  comision: number;
+  estado: EstadoVenta;
+  entregadoEn: string | null;
+  motivoAnulacion: string | null;
+}
+export interface EnMano {
+  barberoId: string;
+  cantidad: number;
+  total: number;
 }

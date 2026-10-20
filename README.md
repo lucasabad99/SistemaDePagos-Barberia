@@ -41,22 +41,47 @@ Abrir http://localhost:5173
 
 ## Entornos
 
-| Entorno | Rama | Backend | Frontend | Base |
-|---|---|---|---|---|
-| Local | cualquiera | `npm run dev` | Vite | MongoDB local |
-| Staging | `develop` | Render (servicio web) | Vercel | Atlas, cluster/DB `barberia-staging` |
-| Producción | `main` | Render (servicio web) | Vercel | Atlas, DB `barberia-prod` |
+| Entorno | Rama | Dónde corre | Base |
+|---|---|---|---|
+| Local | cualquiera | `npm run dev` (API en :4000, Vite en :5173) | MongoDB local, DB `barberia` |
+| Staging | `develop` | Render, servicio `barberia-staging` | Atlas, DB `barberia-staging` |
+| Producción | `main` | Render (a definir) | Atlas, DB `barberia-prod` |
 
-Variables por entorno:
+En staging y producción **un solo servicio** sirve la API (`/api/...`) y la web compilada (`frontend/dist`), así que no hace falta CORS ni `VITE_API_URL`. La configuración está en [render.yaml](render.yaml).
 
-- **Backend**: `NODE_ENV`, `MONGODB_URI`, `JWT_SECRET` (distinto en cada entorno), `CORS_ORIGIN` (URL del frontend de ese entorno).
-- **Frontend**: `VITE_API_URL` (URL pública del backend de ese entorno).
+Flujo de ramas: `feature/*` → PR a `develop` (se publica solo en staging) → PR a `main` (producción).
+
+### Variables del servidor
+
+| Variable | Local | Staging / Producción |
+|---|---|---|
+| `NODE_ENV` | `development` | `staging` / `production` |
+| `MONGODB_URI` | `mongodb://localhost:27017/barberia` | La de Atlas (se carga a mano en Render) |
+| `JWT_SECRET` | en `backend/.env` | La genera Render (distinta por entorno) |
+
+### Cargar datos de ejemplo en staging
+
+El plan gratis de Render no tiene consola, así que el seed se corre desde tu máquina apuntando a Atlas:
+
+```bash
+# PowerShell
+$env:NODE_ENV="staging"; $env:MONGODB_URI="mongodb+srv://...barberia-staging..."; npm run seed
+# Bash
+NODE_ENV=staging MONGODB_URI="mongodb+srv://...barberia-staging..." npm run seed
+```
+
+El seed se niega a correr con `NODE_ENV=production`.
+
+### Limitaciones del plan gratis de Render
+
+- El servicio se duerme tras 15 min sin uso; la primera visita después tarda ~1 minuto en despertar.
+- Para producción conviene el plan pago (~USD 7/mes) para que esté siempre despierto.
 
 ## Roadmap
 
 1. ✅ Base del proyecto + login dueño/barbero
-2. Papelitos: anotar corte (barbero) y nueva venta (dueño), vista del día
-3. Caja: apertura/cierre, recibir efectivo de barberos, confirmar transferencias
+2. ✅ Papelitos: anotar corte (barbero) y nueva venta (dueño), vista por día, recibir efectivo de barberos, confirmar transferencias, anular
+3. Caja: apertura/cierre y arqueo
 4. Barberos y comisiones, liquidación de fin de mes
 5. Inventario, compras y gastos
 6. Impuestos (tope de monotributo, resumen para el contador)
