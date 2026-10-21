@@ -8,6 +8,8 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET debe tener al menos 32 caracteres'),
   JWT_EXPIRES_IN: z.string().default('12h'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  // Si es "true" y la base no tiene usuarios, el servidor carga los datos de ejemplo al arrancar (staging).
+  SEED_DEMO: z.stringbool().default(false),
 });
 
 const parsed = schema.safeParse(process.env);

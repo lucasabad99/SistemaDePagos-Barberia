@@ -18,6 +18,8 @@ services:
         value: "22"
       - key: JWT_EXPIRES_IN
         value: 12h
+      - key: SEED_DEMO
+        value: "true" # carga usuarios y productos de ejemplo si la base está vacía
       - key: JWT_SECRET
         generateValue: true # Render genera uno aleatorio, distinto al de local
       - key: MONGODB_URI
