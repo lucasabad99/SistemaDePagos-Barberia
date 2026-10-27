@@ -10,6 +10,8 @@ const schema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   // Si es "true" y la base no tiene usuarios, el servidor carga los datos de ejemplo al arrancar (staging).
   SEED_DEMO: z.stringbool().default(false),
+  // Zona horaria del negocio: define en qué día cae cada papelito (el servidor de Render corre en UTC).
+  TZ_NEGOCIO: z.string().default('America/Argentina/Buenos_Aires'),
 });
 
 const parsed = schema.safeParse(process.env);

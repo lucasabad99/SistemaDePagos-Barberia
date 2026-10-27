@@ -1,29 +1,44 @@
 import { useState } from 'react';
-import { api, Catalogo, EnMano, post, Usuario, Venta } from '../../lib/api';
+import { api, Catalogo, EnMano, Liquidacion, post, Usuario, Venta } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useToast } from '../../lib/toast';
-import { dayKey, dayRange, fmt, initials, longDate, sum } from '../../lib/format';
+import { addDays, dayKey, dayRange, fmt, initials, longDate, monthKey, plural, sum, weekRange, weekStart } from '../../lib/format';
 import { useData } from '../../lib/useData';
 import { I } from '../../components/Icons';
+import { CardH } from '../../components/Card';
 import { Sheet } from '../../components/Sheet';
 import { descripcion, EstadoPill, Ticket } from '../../components/Ticket';
 import { DayNav } from '../../components/DayNav';
+import { Calendario } from '../../components/Calendario';
 import { VentaSheet } from '../../components/VentaSheet';
+import { RecibirSheet } from '../../components/RecibirSheet';
 
 type Hoja = { tipo: 'venta' } | { tipo: 'recibir'; barbero: Usuario } | { tipo: 'detalle'; venta: Venta } | null;
 
 const POLL = 20_000; // refresco automático para ver los papelitos nuevos de los barberos
 
-export function PapelitosDia() {
+/** Pantalla principal del dueño: qué tiene que pagar, qué tiene pendiente hoy y los papelitos del día. */
+export function PapelitosDia({ irAPagos }: { irAPagos: (lunes?: string) => void }) {
   const { usuario } = useAuth();
   const toast = useToast();
   const [dia, setDia] = useState(dayKey());
+  const [mes, setMes] = useState(monthKey());
+  const [verCalendario, setVerCalendario] = useState(false);
   const [filtro, setFiltro] = useState<string>('all');
   const [hoja, setHoja] = useState<Hoja>(null);
   const esHoy = dia === dayKey();
 
+  const lunes = weekStart();
+  const lunesPasado = addDays(lunes, -7);
+  const liquidacionDe = (l: string) => {
+    const r = weekRange(l);
+    return api<{ barberos: Liquidacion[]; total: number }>(`/liquidacion?desde=${r.desde}&hasta=${r.hasta}`);
+  };
+
   const catalogo = useData(() => api<Catalogo>('/catalogo'), []);
   const usuarios = useData(() => api<{ usuarios: Usuario[] }>('/usuarios'), []);
+  const semana = useData(() => liquidacionDe(lunes), [lunes], POLL);
+  const pasada = useData(() => liquidacionDe(lunesPasado), [lunesPasado]);
   const ventas = useData(
     () => {
       const { desde, hasta } = dayRange(dia);
@@ -36,39 +51,22 @@ export function PapelitosDia() {
   const pendientes = useData(() => api<{ ventas: Venta[] }>('/ventas?estado=pendiente'), [], POLL);
 
   const recargar = () => {
+    semana.reload();
     ventas.reload();
     mano.reload();
     pendientes.reload();
     catalogo.reload();
   };
 
+  const equipo = usuarios.data?.usuarios ?? [];
+  const nombreDe = (id: string) => equipo.find((u) => u.id === id);
+  const conEfectivo = (mano.data?.enMano ?? []).map((m) => ({ ...m, u: nombreDe(m.barberoId) })).filter((m) => m.u);
+  const pend = pendientes.data?.ventas ?? [];
   const todas = ventas.data?.ventas ?? [];
   const validas = todas.filter((v) => v.estado !== 'anulada');
   const lista = filtro === 'all' ? todas : todas.filter((v) => v.barbero.id === filtro);
-  const equipo = usuarios.data?.usuarios ?? [];
-  const barberos = equipo.filter((u) => u.rol === 'barbero');
-  const enManoDe = (id: string) => mano.data?.enMano.find((m) => m.barberoId === id);
-  const pend = pendientes.data?.ventas ?? [];
-
-  const efectivo = sum(validas.filter((v) => v.metodo === 'efectivo'), (v) => v.total);
-  const transf = sum(validas.filter((v) => v.metodo === 'transferencia'), (v) => v.total);
-  const comisiones = sum(validas, (v) => v.comision);
-  const servicios = sum(validas, (v) => v.items.filter((x) => x.tipo === 'servicio').length);
-
-  // Resumen por persona: el reemplazo del "contar papelitos" al final del día.
-  const porPersona = equipo
-    .map((u) => {
-      const vs = validas.filter((v) => v.barbero.id === u.id);
-      return {
-        u,
-        servicios: sum(vs, (v) => v.items.filter((x) => x.tipo === 'servicio').length),
-        efectivo: sum(vs.filter((v) => v.metodo === 'efectivo'), (v) => v.total),
-        transf: sum(vs.filter((v) => v.metodo === 'transferencia'), (v) => v.total),
-        comision: sum(vs, (v) => v.comision),
-        n: vs.length,
-      };
-    })
-    .filter((x) => x.n > 0);
+  const filasSemana = (semana.data?.barberos ?? []).filter((b) => b.comision > 0 || b.saldo !== 0);
+  const debePasada = pasada.data?.total ?? 0;
 
   async function verificar(v: Venta) {
     try {
@@ -85,102 +83,120 @@ export function PapelitosDia() {
     <>
       <div className="head">
         <div>
-          <h1>Papelitos del día</h1>
-          <p className="sub">{longDate(dia)}</p>
+          <h1>Hoy</h1>
+          <p className="sub">{longDate(dayKey())}</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <DayNav value={dia} onChange={setDia} />
-          <button className="btn gold" onClick={() => setHoja({ tipo: 'venta' })} disabled={!catalogo.data || !usuarios.data}>
-            {I.plus}Nueva venta
-          </button>
-        </div>
+        <button className="btn gold" onClick={() => setHoja({ tipo: 'venta' })} disabled={!catalogo.data || !usuarios.data}>
+          {I.plus}Nueva venta
+        </button>
       </div>
 
-      {ventas.error && <div className="demo">{ventas.error}</div>}
-
-      <div className="grid kpis">
-        <Kpi l="Total cobrado" v={fmt(efectivo + transf)} ic="money" cls="ok" d={`${validas.length} papelitos · ${servicios} servicios`} />
-        <Kpi l="Efectivo" v={fmt(efectivo)} ic="caja" cls="gold" />
-        <Kpi l="Transferencias" v={fmt(transf)} ic="ventas" cls="blue" d={`incluye ${fmt(sum(validas, (v) => v.recargo))} de recargo`} />
-        <Kpi l="Comisiones" v={fmt(comisiones)} ic="barberos" cls="warn" d={`queda ${fmt(efectivo + transf - comisiones)} para la barbería`} />
-      </div>
-
-      <div className="grid g2">
-        <div className="card">
-          <CardH t="Efectivo que tienen los barberos" ic="barberos" cls="warn" />
+      {/* 1. Lo que hay que pagar: lo más importante, arriba y en grande */}
+      <div className="card hero">
+        <div>
+          <div className="lbl">A pagar esta semana</div>
+          <div className="monto">{semana.data ? fmt(semana.data.total) : '…'}</div>
+          <div className="small">Comisiones de los barberos, de lunes a domingo</div>
+        </div>
+        {filasSemana.length > 0 ? (
           <div className="list">
-            {barberos.map((b) => {
-              const m = enManoDe(b.id);
-              return (
-                <div className="li" key={b.id}>
-                  <span className="avatar">{initials(b.nombre)}</span>
-                  <div className="grow">
-                    <div className="name">{b.nombre}</div>
-                    <div className="small">{m ? `${m.cantidad} papelito${m.cantidad > 1 ? 's' : ''} sin entregar` : 'Entregó todo'}</div>
+            {filasSemana.map((b) => (
+              <div className="li" key={b.barbero.id}>
+                <span className="avatar">{initials(b.barbero.nombre)}</span>
+                <div className="grow">
+                  <div className="name">{b.barbero.nombre}</div>
+                  <div className="small">
+                    {plural(sum(b.servicios, (s) => s.cant), 'servicio')}
+                    {b.enMano.total > 0 && <span style={{ color: 'var(--warn)' }}> · tiene {fmt(b.enMano.total)} sin entregar</span>}
                   </div>
-                  {m ? (
-                    <button className="btn okb sm num" onClick={() => setHoja({ tipo: 'recibir', barbero: b })}>Recibí {fmt(m.total)}</button>
-                  ) : (
-                    <span className="pill ok">Al día</span>
-                  )}
                 </div>
-              );
-            })}
+                {b.saldo > 0 ? <span className="amt">{fmt(b.saldo)}</span> : <span className="pill ok">Pagado</span>}
+              </div>
+            ))}
           </div>
-        </div>
-        <div className="card">
-          <CardH t="Transferencias para confirmar" ic="ventas" cls="blue" right={<span className="pill blue">{pend.length}</span>} />
-          {pend.length ? (
-            <>
+        ) : (
+          semana.data && <div className="small">Todavía no hay comisiones esta semana.</div>
+        )}
+        {debePasada > 0 && (
+          <button className="btn" style={{ borderColor: 'var(--warn)', color: 'var(--warn)', alignSelf: 'flex-start' }} onClick={() => irAPagos(lunesPasado)}>
+            De la semana pasada quedan {fmt(debePasada)} sin pagar ›
+          </button>
+        )}
+        <button className="btn dark" style={{ alignSelf: 'flex-start' }} onClick={() => irAPagos()}>Ver detalle y pagar ›</button>
+      </div>
+
+      {/* 2. Lo que hay que hacer hoy */}
+      {conEfectivo.length || pend.length ? (
+        <div className="grid g2">
+          {conEfectivo.length > 0 && (
+            <div className="card">
+              <CardH t="Efectivo para recibir" ic="caja" cls="warn" />
+              <div className="list">
+                {conEfectivo.map((m) => (
+                  <div className="li" key={m.barberoId}>
+                    <span className="avatar">{initials(m.u!.nombre)}</span>
+                    <div className="grow">
+                      <div className="name">{m.u!.nombre}</div>
+                      <div className="small">{m.cantidad} papelito{m.cantidad > 1 ? 's' : ''} en efectivo</div>
+                    </div>
+                    <button className="btn okb sm num" onClick={() => setHoja({ tipo: 'recibir', barbero: m.u! })}>Recibí {fmt(m.total)}</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {pend.length > 0 && (
+            <div className="card">
+              <CardH t="Transferencias para confirmar" ic="ventas" cls="blue" right={<span className="pill blue">{pend.length}</span>} />
               <p className="small" style={{ margin: 0 }}>Tocá el papelito cuando veas la plata en tu cuenta.</p>
               <div className="tickets">
                 {pend.map((v) => (
                   <Ticket key={v.id} v={v} onClick={() => setHoja({ tipo: 'detalle', venta: v })} />
                 ))}
               </div>
-            </>
-          ) : (
-            <div className="empty">Todas las transferencias están confirmadas.</div>
+            </div>
           )}
         </div>
-      </div>
-
-      {porPersona.length > 0 && (
-        <div className="card">
-          <h2>Resumen por barbero</h2>
-          <div className="tablewrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Barbero</th>
-                  <th className="r">Servicios</th>
-                  <th className="r">Efectivo</th>
-                  <th className="r">Transferencia</th>
-                  <th className="r">Comisión</th>
-                </tr>
-              </thead>
-              <tbody>
-                {porPersona.map((x) => (
-                  <tr key={x.u.id}>
-                    <td>{x.u.nombre}</td>
-                    <td className="r mono">{x.servicios}</td>
-                    <td className="r mono">{fmt(x.efectivo)}</td>
-                    <td className="r mono">{fmt(x.transf)}</td>
-                    <td className="r mono">{x.u.rol === 'admin' ? '—' : fmt(x.comision)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      ) : (
+        mano.data && pendientes.data && (
+          <div className="card" style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <span className="pill ok">Al día</span>
+            <span className="small">No hay efectivo por recibir ni transferencias por confirmar.</span>
           </div>
-        </div>
+        )
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* 3. Papelitos del día, con calendario para ir a cualquier fecha */}
+      <div className="card">
+        <div className="card-h" style={{ flexWrap: 'wrap' }}>
+          <div>
+            <h2>Papelitos</h2>
+            <div className="small">
+              {validas.length} papelito{validas.length === 1 ? '' : 's'} · {fmt(sum(validas, (v) => v.total))} cobrado
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <DayNav value={dia} onChange={(d) => { setDia(d); setMes(monthKey(d)); }} />
+            <button className="btn sm" aria-pressed={verCalendario} onClick={() => setVerCalendario(!verCalendario)}>
+              {I.liquidacion}{verCalendario ? 'Ocultar calendario' : 'Calendario'}
+            </button>
+          </div>
+        </div>
+        {verCalendario && (
+          <>
+            <Calendario mes={mes} onMes={setMes} seleccionado={dia} onSelect={setDia} marcarPendientes render={(d) => d.papelitos} />
+            <div className="legend">
+              <span><i style={{ background: 'var(--gold-soft)' }} />Días con papelitos (cantidad)</span>
+              <span><i style={{ background: 'var(--blue)', borderRadius: '50%' }} />Transferencias sin confirmar</span>
+            </div>
+          </>
+        )}
         <div className="chips">
-          {[{ id: 'all', nombre: 'Todos' }, ...equipo].map((u) => (
+          {[{ id: 'all', nombre: 'Todos' }, ...equipo.filter((u) => u.activo || todas.some((v) => v.barbero.id === u.id))].map((u) => (
             <button key={u.id} aria-pressed={filtro === u.id} onClick={() => setFiltro(u.id)}>{u.nombre}</button>
           ))}
         </div>
+        {ventas.error && <div className="demo">{ventas.error}</div>}
         {!ventas.data && !ventas.error ? (
           <div className="empty">Cargando…</div>
         ) : lista.length ? (
@@ -231,72 +247,6 @@ export function PapelitosDia() {
         />
       )}
     </>
-  );
-}
-
-/* ---------- Piezas ---------- */
-function Kpi({ l, v, ic, cls, d }: { l: string; v: string; ic: keyof typeof I; cls: string; d?: string }) {
-  return (
-    <div className="card kpi">
-      <div className="row">
-        <span className="l">{l}</span>
-        <span className="card-h"><span className={'ic ' + cls}>{I[ic]}</span></span>
-      </div>
-      <div className="v">{v}</div>
-      {d && <div className="d">{d}</div>}
-    </div>
-  );
-}
-
-function CardH({ t, ic, cls, right }: { t: string; ic: keyof typeof I; cls: string; right?: React.ReactNode }) {
-  return (
-    <div className="card-h">
-      <div className="t">
-        <span className={'ic ' + cls}>{I[ic]}</span>
-        <h2>{t}</h2>
-      </div>
-      {right}
-    </div>
-  );
-}
-
-function RecibirSheet({ barbero, onClose, onDone }: { barbero: Usuario; onClose: () => void; onDone: (total: number) => void }) {
-  const toast = useToast();
-  const [enviando, setEnviando] = useState(false);
-  const { data } = useData(() => api<{ ventas: Venta[] }>(`/ventas?estado=en_barbero&barberoId=${barbero.id}`), [barbero.id]);
-  const lista = data?.ventas ?? [];
-
-  async function confirmar() {
-    setEnviando(true);
-    try {
-      const r = await post<{ total: number }>('/ventas/recibir', { barberoId: barbero.id });
-      onDone(r.total);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Error');
-      setEnviando(false);
-    }
-  }
-
-  return (
-    <Sheet onClose={onClose}>
-      <div>
-        <h1>Recibir efectivo</h1>
-        <p className="sub">{barbero.nombre} te entrega la plata de estos papelitos</p>
-      </div>
-      <div className="tickets">
-        {lista.map((v) => (
-          <Ticket key={v.id} v={v} barbero={false} />
-        ))}
-      </div>
-      <div className="card">
-        <div className="ledger">
-          <span className="tot">Tenés que recibir</span>
-          <span className="r tot">{fmt(sum(lista, (v) => v.total))}</span>
-        </div>
-      </div>
-      <button className="big" onClick={confirmar} disabled={!data || !lista.length || enviando}>Contado y recibido</button>
-      <button className="btn ghost" onClick={onClose}>Cancelar</button>
-    </Sheet>
   );
 }
 

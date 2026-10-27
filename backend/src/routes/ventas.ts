@@ -8,6 +8,7 @@ import { Servicio } from '../models/Servicio';
 import { Producto } from '../models/Producto';
 import { getConfig } from '../models/Config';
 import { siguienteNumero } from '../models/Contador';
+import { env } from '../config/env';
 
 const router = Router();
 router.use(requireAuth);
@@ -137,6 +138,35 @@ router.get('/en-mano', async (req, res) => {
     { $group: { _id: '$barbero', cantidad: { $sum: 1 }, total: { $sum: '$total' } } },
   ]);
   res.json({ enMano: filas.map((f) => ({ barberoId: String(f._id), cantidad: f.cantidad, total: f.total })) });
+});
+
+/* ---------- Calendario: totales por día ---------- */
+const calendarioSchema = z
+  .object({ desde: z.coerce.date(), hasta: z.coerce.date() })
+  .refine((p) => p.hasta > p.desde && +p.hasta - +p.desde <= 45 * 864e5, { message: 'Rango inválido' });
+
+router.get('/calendario', async (req, res) => {
+  const q = calendarioSchema.safeParse(req.query);
+  if (!q.success) return res.status(400).json({ error: 'Rango inválido' });
+  const match: Record<string, unknown> = { fecha: { $gte: q.data.desde, $lt: q.data.hasta }, estado: { $ne: 'anulada' } };
+  if (req.auth!.rol !== 'admin') match.barbero = new Types.ObjectId(req.auth!.uid);
+
+  const dias = await Venta.aggregate<{ _id: string; papelitos: number; servicios: number; total: number; comision: number; pendientes: number }>([
+    { $match: match },
+    {
+      $group: {
+        // El día se calcula en la hora del negocio, no en UTC (un corte a las 22 h no puede caer al día siguiente).
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$fecha', timezone: env.TZ_NEGOCIO } },
+        papelitos: { $sum: 1 },
+        servicios: { $sum: { $size: { $filter: { input: '$items', cond: { $eq: ['$$this.tipo', 'servicio'] } } } } },
+        total: { $sum: '$total' },
+        comision: { $sum: '$comision' },
+        pendientes: { $sum: { $cond: [{ $eq: ['$estado', 'pendiente'] }, 1, 0] } },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+  res.json({ dias: dias.map(({ _id, ...d }) => ({ dia: _id, ...d })) });
 });
 
 /* ---------- Acciones del dueño ---------- */

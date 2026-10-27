@@ -10,6 +10,7 @@ import authRoutes from './routes/auth';
 import catalogoRoutes from './routes/catalogo';
 import usuariosRoutes from './routes/usuarios';
 import ventasRoutes from './routes/ventas';
+import liquidacionRoutes from './routes/liquidacion';
 
 z.config(z.locales.es()); // mensajes de validación en español
 
@@ -28,6 +29,7 @@ export function createApp() {
   app.use('/api/catalogo', catalogoRoutes);
   app.use('/api/usuarios', usuariosRoutes);
   app.use('/api/ventas', ventasRoutes);
+  app.use('/api/liquidacion', liquidacionRoutes);
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'No encontrado' }));
 

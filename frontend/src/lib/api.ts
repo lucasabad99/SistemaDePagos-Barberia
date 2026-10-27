@@ -93,6 +93,34 @@ export interface Venta {
   entregadoEn: string | null;
   motivoAnulacion: string | null;
 }
+export interface Pago {
+  id: string;
+  barbero: string | { id: string; nombre: string };
+  desde: string;
+  hasta: string;
+  monto: number;
+  servicios: number;
+  fecha: string;
+}
+export interface Liquidacion {
+  barbero: { id: string; nombre: string; activo: boolean };
+  papelitos: number;
+  servicios: { nombre: string; cant: number }[];
+  productos: number;
+  comision: number;
+  pagado: number;
+  saldo: number;
+  enMano: { cantidad: number; total: number };
+  pagos: Pago[];
+}
+export interface DiaCalendario {
+  dia: string;
+  papelitos: number;
+  servicios: number;
+  total: number;
+  comision: number;
+  pendientes: number;
+}
 export interface EnMano {
   barberoId: string;
   cantidad: number;
