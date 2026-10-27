@@ -34,7 +34,8 @@ export async function cargarDatosEjemplo() {
   for (const { pin, ...u } of usuarios) {
     await Usuario.updateOne(
       { usuario: u.usuario },
-      { $set: { ...u, pinHash: await Usuario.hashPin(pin), activo: true } },
+      // Resetea el PIN, así que también cierra las sesiones abiertas de ese usuario.
+      { $set: { ...u, pinHash: await Usuario.hashPin(pin), activo: true }, $inc: { sesionVersion: 1 } },
       { upsert: true },
     );
     console.log(`  ✓ ${u.nombre} (${u.rol}) — usuario "${u.usuario}", PIN ${pin}`);

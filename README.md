@@ -81,8 +81,9 @@ El seed se niega a correr con `NODE_ENV=production`.
 
 1. ✅ Base del proyecto + login dueño/barbero
 2. ✅ Papelitos: anotar corte (barbero) y nueva venta (dueño), vista por día, recibir efectivo de barberos, confirmar transferencias, anular
-3. Caja: apertura/cierre y arqueo
-4. Barberos y comisiones, liquidación de fin de mes
-5. Inventario, compras y gastos
-6. Impuestos (tope de monotributo, resumen para el contador)
-7. Clientes y membresías con QR
+3. ✅ Barberos: alta, edición, comisión, activar/desactivar, PIN (el dueño lo resetea; cada uno cambia el suyo). Desactivar o cambiar el PIN cierra la sesión al instante
+4. Caja: apertura/cierre y arqueo
+5. Liquidación de fin de mes
+6. Inventario, compras y gastos
+7. Impuestos (tope de monotributo, resumen para el contador)
+8. Clientes y membresías con QR

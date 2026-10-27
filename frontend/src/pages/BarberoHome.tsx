@@ -8,12 +8,14 @@ import { I } from '../components/Icons';
 import { Ticket } from '../components/Ticket';
 import { DayNav } from '../components/DayNav';
 import { VentaSheet } from '../components/VentaSheet';
+import { CambiarPinSheet } from '../components/CambiarPinSheet';
 
 export function BarberoHome() {
   const { usuario, logout } = useAuth();
   const me = usuario!;
   const [dia, setDia] = useState(dayKey());
   const [anotando, setAnotando] = useState(false);
+  const [cambiandoPin, setCambiandoPin] = useState(false);
   const esHoy = dia === dayKey();
 
   const catalogo = useData(() => api<Catalogo>('/catalogo'), []);
@@ -44,6 +46,7 @@ export function BarberoHome() {
             <b>{me.nombre}</b>
             <small>{catalogo.data?.config.negocio ?? 'Barbero'}</small>
           </div>
+          <button onClick={() => setCambiandoPin(true)}>PIN</button>
           <button onClick={logout}>Salir</button>
         </header>
 
@@ -107,6 +110,7 @@ export function BarberoHome() {
           }}
         />
       )}
+      {cambiandoPin && <CambiarPinSheet onClose={() => setCambiandoPin(false)} />}
     </>
   );
 }

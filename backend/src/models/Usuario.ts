@@ -5,6 +5,9 @@ import { limpiarJSON } from '../utils/json';
 export const ROLES = ['admin', 'barbero'] as const;
 export type Rol = (typeof ROLES)[number];
 
+/** PIN: solo números, de 4 a 6 dígitos. */
+export const PIN_REGEX = /^\d{4,6}$/;
+
 const usuarioSchema = new Schema(
   {
     nombre: { type: String, required: true, trim: true },
@@ -14,6 +17,8 @@ const usuarioSchema = new Schema(
     // % que se lleva el barbero por cada servicio. El dueño no cobra comisión.
     comision: { type: Number, min: 0, max: 100, default: 50 },
     activo: { type: Boolean, default: true },
+    // Se incrementa al cambiar el PIN o desactivar al usuario: invalida los tokens ya emitidos.
+    sesionVersion: { type: Number, default: 0, select: false },
   },
   { timestamps: true },
 );
@@ -27,6 +32,7 @@ usuarioSchema.statics.hashPin = (pin: string) => bcrypt.hash(pin, 10);
 usuarioSchema.set('toJSON', {
   transform: (doc, ret: Record<string, unknown>) => {
     delete ret.pinHash;
+    delete ret.sesionVersion;
     return limpiarJSON(doc, ret);
   },
 });

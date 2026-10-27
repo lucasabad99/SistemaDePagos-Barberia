@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth';
 import { Logo } from '../Logo';
 
 export function Login() {
-  const { login } = useAuth();
+  const { login, aviso } = useAuth();
   const [usuario, setUsuario] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -42,7 +42,7 @@ export function Login() {
             <input id="l-pin" type="password" inputMode="numeric" autoComplete="current-password" placeholder="4 números" value={pin} onChange={(e) => setPin(e.target.value)} />
           </div>
         </div>
-        <div className="lerr" role="alert">{error}</div>
+        <div className="lerr" role="alert">{error || aviso}</div>
         <button className="lbtn" type="submit" disabled={enviando}>
           {enviando ? 'Entrando…' : 'Iniciar sesión'}
         </button>
