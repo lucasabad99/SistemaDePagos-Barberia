@@ -1,10 +1,31 @@
 const BASE = (import.meta.env.VITE_API_URL ?? '') + '/api';
 const TOKEN_KEY = 'barberia.token';
 
+// Cada pestaña guarda su propia sesión (sessionStorage), así se puede tener al dueño en una
+// y a un barbero en otra sin que se pisen. Además se recuerda la última sesión (localStorage)
+// para que una pestaña nueva o el navegador reabierto entren directo, sin pedir el PIN.
+// Los accesos van en try/catch porque en modo privado algunos navegadores bloquean el storage.
+const leer = (s: Storage) => { try { return s.getItem(TOKEN_KEY); } catch { return null; } };
+const escribir = (s: Storage, t: string) => { try { s.setItem(TOKEN_KEY, t); } catch { /* sin storage */ } };
+const borrar = (s: Storage) => { try { s.removeItem(TOKEN_KEY); } catch { /* sin storage */ } };
+
 export const tokenStore = {
-  get: () => localStorage.getItem(TOKEN_KEY),
-  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  get: () => {
+    const propio = leer(sessionStorage);
+    if (propio) return propio;
+    const ultimo = leer(localStorage);
+    if (ultimo) escribir(sessionStorage, ultimo); // la pestaña nueva adopta la última sesión
+    return ultimo;
+  },
+  set: (t: string) => {
+    escribir(sessionStorage, t);
+    escribir(localStorage, t);
+  },
+  clear: () => {
+    // Solo olvida la "última sesión" si es la de esta pestaña: salir como Nico no cierra a Darwin.
+    if (leer(localStorage) === leer(sessionStorage)) borrar(localStorage);
+    borrar(sessionStorage);
+  },
 };
 
 export class ApiError extends Error {
