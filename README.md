@@ -39,6 +39,15 @@ Abrir http://localhost:5173
 | nico | 2222 | Barbero |
 | leo | 3333 | Barbero |
 
+## Instalar en el celular (PWA)
+
+La app se instala desde el navegador, sin tiendas. Abrir la URL del entorno y:
+
+- **Android (Chrome):** tocar "Instalar Papelito en este celular" en el login, o menú ⋮ → "Instalar app".
+- **iPhone (Safari):** Compartir → "Agregar a inicio".
+
+Queda con ícono propio y abre a pantalla completa. Cada deploy llega solo al volver a abrir la app; si estaba abierta, aparece "Hay una versión nueva · Actualizar". El service worker ([frontend/public/sw.js](frontend/public/sw.js)) pide siempre la red primero y nunca guarda respuestas de la API.
+
 ## Entornos
 
 | Entorno | Rama | Dónde corre | Base |

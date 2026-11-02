@@ -37,7 +37,23 @@ export function createApp() {
   // En local no existe esa carpeta (o se ignora) y la web la sirve Vite.
   const webDist = path.resolve(__dirname, '../../frontend/dist');
   if (env.NODE_ENV !== 'development' && fs.existsSync(webDist)) {
-    app.use(express.static(webDist, { index: false, maxAge: '1y', immutable: true }));
+    app.use(
+      express.static(webDist, {
+        index: false,
+        setHeaders: (res, archivo) => {
+          const rel = path.relative(webDist, archivo).replace(/\\/g, '/');
+          if (rel.startsWith('assets/')) {
+            // Los archivos de assets/ llevan un hash en el nombre: cambian de nombre en cada deploy.
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else if (rel === 'sw.js' || rel.endsWith('.webmanifest')) {
+            // El service worker y el manifiesto de la app instalada tienen que tomarse siempre frescos.
+            res.setHeader('Cache-Control', 'no-cache');
+          } else {
+            res.setHeader('Cache-Control', 'public, max-age=86400'); // íconos: 1 día
+          }
+        },
+      }),
+    );
     app.get('/{*splat}', (_req, res) => {
       res.setHeader('Cache-Control', 'no-cache'); // el index.html siempre fresco para tomar el deploy nuevo
       res.sendFile(path.join(webDist, 'index.html'));

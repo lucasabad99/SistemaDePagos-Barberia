@@ -10,6 +10,7 @@
     "db:down": "docker compose down",
     "seed": "npm --prefix backend run seed",
     "dev": "concurrently -n api,web -c blue,green \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "dev:celu": "concurrently -n api,web -c blue,green \"npm --prefix backend run dev\" \"npm --prefix frontend run dev -- --host\"",
     "build": "npm --prefix backend run build && npm --prefix frontend run build",
     "build:deploy": "npm ci --prefix backend --include=dev && npm ci --prefix frontend --include=dev && npm run build",
     "start": "npm --prefix backend start"

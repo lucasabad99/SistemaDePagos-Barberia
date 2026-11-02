@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { Logo } from '../Logo';
+import { InstalarApp } from '../components/Pwa';
 
 export function Login() {
   const { login, aviso } = useAuth();
@@ -46,6 +47,9 @@ export function Login() {
         <button className="lbtn" type="submit" disabled={enviando}>
           {enviando ? 'Entrando…' : 'Iniciar sesión'}
         </button>
+        <div style={{ textAlign: 'center' }}>
+          <InstalarApp />
+        </div>
       </form>
     </div>
   );

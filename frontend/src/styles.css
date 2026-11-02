@@ -309,3 +309,9 @@ body.barbero::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-ar
 .hero{border:1px solid var(--gold);background:linear-gradient(180deg,var(--gold-soft),var(--surface) 70%)}
 .hero .monto{font-size:36px;font-weight:700;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
 .hero .lbl{font-size:13px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:.06em}
+
+/* PWA: aviso de versión nueva y guía de instalación en iPhone */
+.upd{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));z-index:90;display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--bg);padding:8px 8px 8px 16px;border-radius:999px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);width:max-content;max-width:calc(100% - 32px);white-space:nowrap}
+.upd button{border:0;background:var(--gold);color:var(--on-gold);border-radius:999px;padding:6px 14px;font-weight:700;font-size:13.5px}
+.guia-ios{text-align:left;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px 14px;font-size:13.5px;color:#E8EEF7}
+.guia-ios ol{margin:6px 0 0;padding-left:20px;line-height:1.6}
