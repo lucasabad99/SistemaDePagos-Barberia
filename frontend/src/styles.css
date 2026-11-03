@@ -100,7 +100,13 @@ body.admin::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area
   .side.open{transform:none}
   .drawer-scrim.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:44}
   .bar .burger{display:grid}
+  /* En el celu la barra de arriba ya dice el nombre de la sección: no lo repetimos */
+  .content > .head h1{display:none}
+  .content > .head{align-items:center}
+  .content{padding-top:16px}
 }
+/* Sombra suave: el contenido pasa por debajo de la barra en vez de verse cortado */
+.bar{box-shadow:0 1px 0 var(--line),0 6px 14px -10px rgba(11,31,58,.35)}
 @media (prefers-reduced-motion:reduce){.side{transition:none}}
 
 .head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
