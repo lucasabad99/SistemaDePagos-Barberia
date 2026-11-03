@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { PIN_REGEX, Usuario } from '../models/Usuario';
 import { firmarToken, requireAuth } from '../middleware/auth';
+import { hayDemo, usuariosDemo } from '../seed/datosEjemplo';
 
 const router = Router();
 
@@ -32,6 +33,13 @@ router.post('/login', pinLimiter, async (req, res) => {
 
   const token = firmarToken({ uid: String(u._id), rol: u.rol, sv: u.sesionVersion ?? 0 });
   res.json({ token, usuario: u.toJSON() });
+});
+
+// Solo en local/staging: usuarios de ejemplo con su PIN, para los botones de "entrar rápido".
+// En producción responde 404, así que el login no muestra nada.
+router.get('/demo', (_req, res) => {
+  if (!hayDemo()) return res.status(404).json({ error: 'No encontrado' });
+  res.json({ usuarios: usuariosDemo() });
 });
 
 router.get('/me', requireAuth, async (req, res) => {

@@ -12,6 +12,12 @@ const usuarios = [
   { nombre: 'Leo', usuario: 'leo', pin: '3333', rol: 'barbero', comision: 45 },
 ] as const;
 
+/** Hay datos de ejemplo en este entorno (local o staging). En producción, nunca. */
+export const hayDemo = () => env.NODE_ENV !== 'production' && (env.SEED_DEMO || env.NODE_ENV === 'development');
+
+/** Usuarios de ejemplo para los botones de "entrar rápido" del login. */
+export const usuariosDemo = () => usuarios.map(({ nombre, usuario, pin, rol }) => ({ nombre, usuario, pin, rol }));
+
 const servicios = [
   { nombre: 'Corte', precio: 18000, orden: 1 },
   { nombre: 'Barba', precio: 10000, orden: 2 },

@@ -1,5 +1,13 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
+import { api } from '../lib/api';
+
+interface UsuarioDemo {
+  nombre: string;
+  usuario: string;
+  pin: string;
+  rol: 'admin' | 'barbero';
+}
 import { Logo } from '../Logo';
 import { InstalarApp } from '../components/Pwa';
 
@@ -10,17 +18,35 @@ export function Login() {
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  // Solo en local/staging el servidor devuelve los usuarios de ejemplo; en producción, nada.
+  const [demo, setDemo] = useState<UsuarioDemo[]>([]);
+  useEffect(() => {
+    api<{ usuarios: UsuarioDemo[] }>('/auth/demo')
+      .then((r) => setDemo(r.usuarios))
+      .catch(() => setDemo([]));
+  }, []);
+
+  async function entrar(u: string, p: string) {
     setError('');
     setEnviando(true);
     try {
-      await login(usuario, pin);
+      await login(u, p);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión');
     } finally {
       setEnviando(false);
     }
+  }
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    entrar(usuario, pin);
+  }
+
+  function entrarComo(d: UsuarioDemo) {
+    setUsuario(d.usuario);
+    setPin(d.pin);
+    entrar(d.usuario, d.pin);
   }
 
   return (
@@ -50,6 +76,21 @@ export function Login() {
         <div style={{ textAlign: 'center' }}>
           <InstalarApp />
         </div>
+        {demo.length > 0 && (
+          <div className="quick">
+            <p>Entorno de prueba · entrá rápido como</p>
+            <div className="row">
+              {demo.map((d) => (
+                <button key={d.usuario} type="button" onClick={() => entrarComo(d)} disabled={enviando} title={`Usuario ${d.usuario} · PIN ${d.pin}`}>
+                  {d.nombre} <b>{d.rol === 'admin' ? 'dueño' : 'barbero'}</b>
+                </button>
+              ))}
+            </div>
+            <p>
+              {demo.map((d) => `${d.usuario} / ${d.pin}`).join(' · ')}
+            </p>
+          </div>
+        )}
       </form>
     </div>
   );
