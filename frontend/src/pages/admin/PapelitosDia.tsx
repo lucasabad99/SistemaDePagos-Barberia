@@ -81,7 +81,7 @@ export function PapelitosDia({ irAPagos }: { irAPagos: (lunes?: string) => void 
 
   return (
     <>
-      <div className="head">
+      <div className="head fija">
         <div>
           <h1>Hoy</h1>
           <p className="sub">{longDate(dayKey())}</p>

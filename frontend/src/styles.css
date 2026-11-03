@@ -104,6 +104,12 @@ body.admin::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area
   .content > .head h1{display:none}
   .content > .head{align-items:center}
   .content{padding-top:16px}
+  /* "Hoy": la fecha y Nueva venta quedan pegadas debajo de la barra, siempre a la vista */
+  .bar{height:59px}
+  .content > .head.fija{position:sticky;top:calc(env(safe-area-inset-top,0px) + 59px);z-index:14;background:var(--bg);
+    margin:-16px calc(-1 * max(16px,env(safe-area-inset-left,0px))) 0;padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));
+    box-shadow:0 1px 0 var(--line),0 6px 14px -10px rgba(11,31,58,.35)}
+  .mainc:has(.head.fija) .bar{box-shadow:none;border-bottom-color:transparent}
 }
 /* Sombra suave: el contenido pasa por debajo de la barra en vez de verse cortado */
 .bar{box-shadow:0 1px 0 var(--line),0 6px 14px -10px rgba(11,31,58,.35)}
