@@ -87,6 +87,9 @@ h2{font-size:17px;font-weight:700}
 .mainc{flex:1;min-width:0;display:flex;flex-direction:column}
 .bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:15;background:var(--bg);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;
   padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+/* La barra fija se ubica debajo de la zona de la hora del iPhone: el contenido tiene que arrancar
+   ahí también, si no la barra queda corrida hacia abajo y tapa lo de arriba. */
+.mainc,.phone{padding-top:env(safe-area-inset-top,0px)}
 body.admin::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:16;background:var(--bg)}
 .bar .burger{display:none;border:1px solid var(--line);background:var(--surface);border-radius:9px;width:38px;height:38px;place-items:center}
 .bar .burger svg{width:20px;height:20px}
