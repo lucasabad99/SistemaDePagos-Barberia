@@ -91,6 +91,7 @@ export function Login() {
             </p>
           </div>
         )}
+        <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', margin: 0 }}>Versión {__VERSION__}</p>
       </form>
     </div>
   );

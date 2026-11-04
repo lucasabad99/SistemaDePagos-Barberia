@@ -68,7 +68,7 @@ export function AdminHome() {
           <span className="avatar">{initials(me.nombre)}</span>
           <div className="grow">
             <b>{me.nombre}</b>
-            <small>Administrador</small>
+            <small>Administrador · v{__VERSION__}</small>
           </div>
           <button onClick={logout}>Salir</button>
         </div>
