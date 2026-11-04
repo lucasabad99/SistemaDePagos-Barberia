@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// Este archivo corre en Node, pero el proyecto no carga los tipos de Node: declaramos solo lo que usamos.
+declare const process: { argv: string[]; env: Record<string, string | undefined> };
+
 // En Render NODE_ENV vale "staging" (lo necesita el backend), y Vite armaría el frontend en modo
 // desarrollo: React lento y sin service worker. El build siempre es de producción.
 if (process.argv.includes('build')) process.env.NODE_ENV = 'production';
