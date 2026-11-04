@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { api, EnMano, patch, post, Usuario, Venta } from '../../lib/api';
+import { api, EnMano, Local, patch, post, Usuario, Venta } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useToast } from '../../lib/toast';
 import { fmt, initials, sum } from '../../lib/format';
@@ -12,7 +12,7 @@ type Hoja = { tipo: 'nuevo' } | { tipo: 'editar'; u: Usuario } | { tipo: 'pin'; 
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-export function Barberos() {
+export function Barberos({ locales, localActual }: { locales: Local[]; localActual: Local }) {
   const { usuario: yo, recargarYo } = useAuth();
   const toast = useToast();
   const [hoja, setHoja] = useState<Hoja>(null);
@@ -37,7 +37,7 @@ export function Barberos() {
       <div className="head">
         <div>
           <h1>Barberos</h1>
-          <p className="sub">{activos} barbero{activos === 1 ? '' : 's'} activo{activos === 1 ? '' : 's'} · números de {MESES[ahora.getMonth()]}</p>
+          <p className="sub">Local {localActual.nombre} · {activos} barbero{activos === 1 ? '' : 's'} activo{activos === 1 ? '' : 's'} · números de {MESES[ahora.getMonth()]}</p>
         </div>
         <button className="btn gold" onClick={() => setHoja({ tipo: 'nuevo' })}>{I.plus}Agregar barbero</button>
       </div>
@@ -103,6 +103,8 @@ export function Barberos() {
 
       {hoja?.tipo === 'nuevo' && (
         <UsuarioSheet
+          locales={locales}
+          localActual={localActual}
           onClose={() => setHoja(null)}
           onDone={(u) => {
             toast(`${u.nombre} ya puede entrar con el usuario "${u.usuario}"`);
@@ -115,9 +117,12 @@ export function Barberos() {
         <UsuarioSheet
           u={hoja.u}
           esYo={hoja.u.id === yo?.id}
+          locales={locales}
+          localActual={localActual}
           onClose={() => setHoja(null)}
-          onDone={() => {
-            toast('Cambios guardados');
+          onDone={(u) => {
+            const otro = u.local && u.local !== localActual.id ? locales.find((l) => l.id === u.local) : null;
+            toast(otro ? `${u.nombre} ahora trabaja en el local ${otro.nombre}` : 'Cambios guardados');
             setHoja(null);
             recargar();
           }}
@@ -139,13 +144,28 @@ export function Barberos() {
 }
 
 /* ---------- Alta / edición ---------- */
-function UsuarioSheet({ u, esYo, onClose, onDone }: { u?: Usuario; esYo?: boolean; onClose: () => void; onDone: (u: Usuario) => void }) {
+function UsuarioSheet({
+  u,
+  esYo,
+  locales,
+  localActual,
+  onClose,
+  onDone,
+}: {
+  u?: Usuario;
+  esYo?: boolean;
+  locales: Local[];
+  localActual: Local;
+  onClose: () => void;
+  onDone: (u: Usuario) => void;
+}) {
   const nuevo = !u;
   const [nombre, setNombre] = useState(u?.nombre ?? '');
   const [usuario, setUsuario] = useState(u?.usuario ?? '');
   const [pin, setPin] = useState('');
   const [comision, setComision] = useState(String(u?.comision ?? 50));
   const [activo, setActivo] = useState(u?.activo ?? true);
+  const [localId, setLocalId] = useState(u?.local ?? localActual.id);
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
   const esBarbero = !u || u.rol === 'barbero';
@@ -158,7 +178,7 @@ function UsuarioSheet({ u, esYo, onClose, onDone }: { u?: Usuario; esYo?: boolea
       const datos = { nombre, usuario, ...(esBarbero && { comision: Number(comision) || 0 }) };
       const r = nuevo
         ? await post<{ usuario: Usuario }>('/usuarios', { ...datos, pin })
-        : await patch<{ usuario: Usuario }>(`/usuarios/${u!.id}`, { ...datos, ...(!esYo && { activo }) });
+        : await patch<{ usuario: Usuario }>(`/usuarios/${u!.id}`, { ...datos, ...(!esYo && { activo }), ...(esBarbero && { localId }) });
       onDone(r.usuario);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar');
@@ -171,7 +191,7 @@ function UsuarioSheet({ u, esYo, onClose, onDone }: { u?: Usuario; esYo?: boolea
       <form onSubmit={guardar} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <h1>{nuevo ? 'Agregar barbero' : `Editar a ${u!.nombre}`}</h1>
-          {nuevo && <p className="sub">Después pasale su usuario y PIN para que entre desde el celular.</p>}
+          {nuevo && <p className="sub">Va a trabajar en el local {localActual.nombre}. Después pasale su usuario y PIN para que entre desde el celular.</p>}
         </div>
         <div className="fields">
           <div className="field">
@@ -191,6 +211,21 @@ function UsuarioSheet({ u, esYo, onClose, onDone }: { u?: Usuario; esYo?: boolea
             </div>
           )}
         </div>
+        {!nuevo && esBarbero && locales.length > 1 && (
+          <div className="field">
+            <label>Local donde trabaja</label>
+            <div className="chips">
+              {locales.map((l) => (
+                <button key={l.id} type="button" aria-pressed={localId === l.id} onClick={() => setLocalId(l.id)}>
+                  {l.nombre}
+                </button>
+              ))}
+            </div>
+            {localId !== (u!.local ?? localActual.id) && (
+              <span className="hint">Los papelitos que ya anotó quedan en el local donde los hizo.</span>
+            )}
+          </div>
+        )}
         {!nuevo && !esYo && (
           <label className="check">
             <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} />

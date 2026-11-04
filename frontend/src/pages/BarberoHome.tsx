@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, Catalogo, EnMano, Venta } from '../lib/api';
+import { api, Catalogo, EnMano, Local, Venta } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { dayKey, dayRange, fmt, longDate, sum } from '../lib/format';
 import { useData } from '../lib/useData';
@@ -18,6 +18,8 @@ export function BarberoHome() {
   const [tab, setTab] = useState<Tab>('hoy');
   const [cambiandoPin, setCambiandoPin] = useState(false);
   const catalogo = useData(() => api<Catalogo>('/catalogo'), []);
+  const locales = useData(() => api<{ locales: Local[] }>('/locales').then((r) => r.locales), []);
+  const miLocal = locales.data?.find((l) => l.id === me.local);
 
   const irA = (t: Tab) => {
     setTab(t);
@@ -31,7 +33,7 @@ export function BarberoHome() {
           <Logo className="lg" />
           <div className="grow">
             <b>{me.nombre}</b>
-            <small>{catalogo.data?.config.negocio ?? 'Barbero'}</small>
+            <small>{miLocal ? `Local ${miLocal.nombre}` : (catalogo.data?.config.negocio ?? 'Barbero')}</small>
           </div>
           <button onClick={() => setCambiandoPin(true)}>PIN</button>
           <button onClick={logout}>Salir</button>

@@ -6,6 +6,7 @@ import { limpiarJSON } from '../utils/json';
 // la diferencia queda como saldo y se paga aparte.
 const pagoSchema = new Schema(
   {
+    local: { type: Schema.Types.ObjectId, ref: 'Local', required: true },
     barbero: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
     desde: { type: Date, required: true }, // inicio del período (inclusive)
     hasta: { type: Date, required: true }, // fin del período (exclusive)

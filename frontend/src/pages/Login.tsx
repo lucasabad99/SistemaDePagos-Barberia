@@ -7,6 +7,7 @@ interface UsuarioDemo {
   usuario: string;
   pin: string;
   rol: 'admin' | 'barbero';
+  local: string | null;
 }
 import { Logo } from '../Logo';
 import { InstalarApp } from '../components/Pwa';
@@ -82,7 +83,7 @@ export function Login() {
             <div className="row">
               {demo.map((d) => (
                 <button key={d.usuario} type="button" onClick={() => entrarComo(d)} disabled={enviando} title={`Usuario ${d.usuario} · PIN ${d.pin}`}>
-                  {d.nombre} <b>{d.rol === 'admin' ? 'dueño' : 'barbero'}</b>
+                  {d.nombre} <b>{d.rol === 'admin' ? 'dueño' : d.local ?? 'barbero'}</b>
                 </button>
               ))}
             </div>

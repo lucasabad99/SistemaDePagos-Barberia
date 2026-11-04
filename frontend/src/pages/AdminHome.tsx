@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api, Local, localStore } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { initials } from '../lib/format';
+import { useData } from '../lib/useData';
 import { Logo } from '../Logo';
 import { I } from '../components/Icons';
 import { PapelitosDia } from './admin/PapelitosDia';
 import { Pagos } from './admin/Pagos';
 import { Resumen } from './admin/Resumen';
 import { Barberos } from './admin/Barberos';
+import { ElegirLocal } from './admin/ElegirLocal';
 
 type Vista = 'hoy' | 'pagos' | 'resumen' | 'barberos';
 
@@ -31,12 +34,45 @@ export function AdminHome() {
   const [pagosDesde, setPagosDesde] = useState<string | undefined>();
   const me = usuario!;
 
+  // Local en el que está parado. Sin local elegido, se muestra la pantalla para elegirlo.
+  const locales = useData(() => api<{ locales: Local[] }>('/locales').then((r) => r.locales), []);
+  const [localId, setLocalId] = useState<string | null>(() => localStore.get());
+  const [eligiendo, setEligiendo] = useState(false);
+  const local = locales.data?.find((l) => l.id === localId) ?? null;
+
+  useEffect(() => {
+    const onElegir = () => setLocalId(null);
+    window.addEventListener('local:elegir', onElegir);
+    return () => window.removeEventListener('local:elegir', onElegir);
+  }, []);
+
+  // Si el local guardado ya no existe, se vuelve a elegir.
+  useEffect(() => {
+    if (locales.data && localId && !local) {
+      localStore.clear();
+      setLocalId(null);
+    }
+  }, [locales.data, localId, local]);
+
+  const elegir = (l: Local) => {
+    localStore.set(l.id);
+    setLocalId(l.id);
+    setEligiendo(false);
+    setVista('hoy');
+    setPagosDesde(undefined);
+    window.scrollTo(0, 0);
+  };
+
   const ir = (k: Vista, lunes?: string) => {
     setVista(k);
     setPagosDesde(lunes);
     setDrawer(false);
     window.scrollTo(0, 0);
   };
+
+  if (!local || eligiendo) {
+    return <ElegirLocal me={me} locales={locales.data} actual={localId} onElegir={elegir} onSalir={logout} />;
+  }
 
   return (
     <div className="shell">
@@ -48,6 +84,14 @@ export function AdminHome() {
             <span>Administración</span>
           </div>
         </div>
+        <button className="local-actual" onClick={() => { setDrawer(false); setEligiendo(true); }}>
+          {I.local}
+          <span className="grow">
+            <small>Estás en</small>
+            <b>Local {local.nombre}</b>
+          </span>
+          <span className="cambiar">Cambiar</span>
+        </button>
         <nav>
           {NAV.map((n) => (
             <button
@@ -79,13 +123,17 @@ export function AdminHome() {
         <header className="bar">
           <button className="burger" onClick={() => setDrawer(true)} aria-label="Abrir menú">{I.menu}</button>
           <div className="grow"><b>{NAV.find((n) => n.k === vista)!.l}</b></div>
-          <span className="avatar">{initials(me.nombre)}</span>
+          <button className="chip-local" onClick={() => setEligiendo(true)} title="Cambiar de local">
+            {I.local}
+            {local.nombre}
+          </button>
         </header>
-        <div className="content">
+        {/* key: al cambiar de local se recarga todo con los datos del otro local */}
+        <div className="content" key={local.id}>
           {vista === 'hoy' && <PapelitosDia irAPagos={(lunes) => ir('pagos', lunes)} />}
           {vista === 'pagos' && <Pagos key={pagosDesde ?? 'actual'} lunesInicial={pagosDesde} />}
           {vista === 'resumen' && <Resumen />}
-          {vista === 'barberos' && <Barberos />}
+          {vista === 'barberos' && <Barberos locales={locales.data ?? []} localActual={local} />}
         </div>
       </div>
     </div>

@@ -1,10 +1,12 @@
 import { Router } from 'express';
+import { Types } from 'mongoose';
 import { z } from 'zod';
-import { requireAuth, requireRol } from '../middleware/auth';
+import { requireAuth, requireLocal, requireRol } from '../middleware/auth';
 import { PIN_REGEX, Usuario } from '../models/Usuario';
+import { Local } from '../models/Local';
 
 const router = Router();
-router.use(requireAuth, requireRol('admin'));
+router.use(requireAuth, requireRol('admin'), requireLocal);
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'id inválido');
 const nombre = z.string().trim().min(2, 'El nombre es muy corto').max(40);
@@ -19,12 +21,13 @@ const comision = z.number().int().min(0).max(100);
 const esDuplicado = (err: unknown) => (err as { code?: number })?.code === 11000;
 const YA_EXISTE = { error: 'Ese usuario ya existe. Elegí otro.' };
 
-router.get('/', async (_req, res) => {
-  const usuarios = await Usuario.find().sort({ rol: 1, activo: -1, nombre: 1 });
+// El dueño y los barberos del local en el que está parado.
+router.get('/', async (req, res) => {
+  const usuarios = await Usuario.find({ $or: [{ rol: 'admin' }, { local: req.local }] }).sort({ rol: 1, activo: -1, nombre: 1 });
   res.json({ usuarios });
 });
 
-// Alta de barbero. Desde la app solo se crean barberos; el dueño ya existe.
+// Alta de barbero, en el local en el que está parado el dueño. El dueño ya existe.
 router.post('/', async (req, res) => {
   const body = z.object({ nombre, usuario, pin, comision }).safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: body.error.issues[0].message });
@@ -35,6 +38,7 @@ router.post('/', async (req, res) => {
       pinHash: await Usuario.hashPin(body.data.pin),
       rol: 'barbero',
       comision: body.data.comision,
+      local: req.local,
       activo: true,
     });
     res.status(201).json({ usuario: u });
@@ -46,7 +50,7 @@ router.post('/', async (req, res) => {
 
 router.patch('/:id', async (req, res) => {
   if (!objectId.safeParse(req.params.id).success) return res.status(400).json({ error: 'id inválido' });
-  const body = z.object({ nombre, usuario, comision, activo: z.boolean() }).partial().safeParse(req.body);
+  const body = z.object({ nombre, usuario, comision, activo: z.boolean(), localId: objectId }).partial().safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: body.error.issues[0].message });
 
   const u = await Usuario.findById(req.params.id).select('+sesionVersion');
@@ -54,8 +58,13 @@ router.patch('/:id', async (req, res) => {
   const esYo = String(u._id) === req.auth!.uid;
   if (esYo && body.data.activo === false) return res.status(400).json({ error: 'No podés desactivarte a vos mismo' });
 
-  const { activo, ...datos } = body.data;
+  const { activo, localId, ...datos } = body.data;
   Object.assign(u, datos);
+  // Pasar a un barbero al otro local.
+  if (localId && u.rol !== 'admin') {
+    if (!(await Local.exists({ _id: localId, activo: true }))) return res.status(400).json({ error: 'Ese local no existe' });
+    u.local = new Types.ObjectId(localId);
+  }
   if (activo !== undefined && activo !== u.activo) {
     u.activo = activo;
     if (!activo) u.sesionVersion = (u.sesionVersion ?? 0) + 1; // lo saca de la app en el momento

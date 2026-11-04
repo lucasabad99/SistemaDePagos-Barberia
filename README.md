@@ -32,12 +32,21 @@ npm run dev                         # levanta API + web
 
 Abrir http://localhost:5173
 
-| Usuario | PIN | Rol |
-|---|---|---|
-| darwin | 1234 | Dueño (admin) |
-| matias | 1111 | Barbero |
-| nico | 2222 | Barbero |
-| leo | 3333 | Barbero |
+| Usuario | PIN | Rol | Local |
+|---|---|---|---|
+| darwin | 1234 | Dueño (admin) | elige al entrar |
+| matias | 1111 | Barbero | Almagro |
+| nico | 2222 | Barbero | Almagro |
+| leo | 3333 | Barbero | Acuña |
+
+### Locales
+
+La barbería tiene dos locales (**Acuña** y **Almagro**), con los números separados:
+
+- El dueño elige el local al iniciar sesión y lo puede cambiar desde el menú. Hoy, Pagos, Resumen y Barberos muestran solo ese local. El local elegido viaja en cada pedido en el encabezado `X-Local`.
+- Cada barbero pertenece a un local: sus papelitos quedan ahí solos. El dueño lo puede pasar al otro local desde *Editar*.
+- Los precios son los mismos en los dos locales; el stock de productos es de cada local.
+- Al arrancar, el servidor crea los locales si no existen y le asigna local a los datos anteriores (`backend/src/seed/locales.ts`).
 
 ## Instalar en el celular (PWA)
 
@@ -92,6 +101,7 @@ El seed se niega a correr con `NODE_ENV=production`.
 2. ✅ Papelitos: anotar corte (barbero) y nueva venta (dueño), vista por día, recibir efectivo de barberos, confirmar transferencias, anular
 3. ✅ Barberos: alta, edición, comisión, activar/desactivar, PIN (el dueño lo resetea; cada uno cambia el suyo). Desactivar o cambiar el PIN cierra la sesión al instante
 4. ✅ Pagos semanales (lunes a domingo): "A pagar esta semana" en la pantalla principal, sección Pagos para registrar cada pago (bloqueado si el barbero tiene efectivo sin entregar), Resumen con los números del negocio, calendario para el dueño y "Mis cobros" con calendario para el barbero
+5. ✅ Dos locales (Acuña y Almagro): el dueño elige en cuál trabaja, cada barbero pertenece a uno, stock por local
 5. Caja: apertura/cierre y arqueo
 6. Inventario, compras y gastos
 7. Impuestos (tope de monotributo, resumen para el contador)

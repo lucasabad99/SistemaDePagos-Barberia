@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
-import { requireAuth, requireRol } from '../middleware/auth';
+import { requireAuth, requireLocal, requireRol } from '../middleware/auth';
 import { Venta } from '../models/Venta';
 import { Usuario } from '../models/Usuario';
 import { Pago } from '../models/Pago';
@@ -9,7 +9,7 @@ import { Pago } from '../models/Pago';
 // Liquidación de comisiones por período: cuánto le corresponde a cada barbero,
 // cuánto ya se le pagó y cuánto falta. Es la misma cuenta para el dueño y para el barbero.
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, requireLocal);
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'id inválido');
 const DIA = 864e5;
@@ -29,8 +29,19 @@ interface Liquidacion {
   pagos: unknown[];
 }
 
-async function liquidar(desde: Date, hasta: Date, soloBarbero?: string): Promise<Liquidacion[]> {
-  const filtroBarbero = soloBarbero ? { barbero: new Types.ObjectId(soloBarbero) } : {};
+/**
+ * soloBarbero: la liquidación de un barbero (lo que ve él, de todos sus locales).
+ * local: la del dueño, parado en un local: solo los papelitos, pagos y barberos de ese local.
+ */
+async function liquidar(
+  desde: Date,
+  hasta: Date,
+  { soloBarbero, local }: { soloBarbero?: string; local?: Types.ObjectId },
+): Promise<Liquidacion[]> {
+  const filtroBarbero = {
+    ...(soloBarbero && { barbero: new Types.ObjectId(soloBarbero) }),
+    ...(local && { local }),
+  };
 
   const [ventas, pagos, enMano] = await Promise.all([
     Venta.find({ ...filtroBarbero, fecha: { $gte: desde, $lt: hasta }, estado: { $ne: 'anulada' } }).select('barbero items comision'),
@@ -45,7 +56,9 @@ async function liquidar(desde: Date, hasta: Date, soloBarbero?: string): Promise
   // Barberos a mostrar: los activos, más cualquiera que tenga movimientos en el período.
   const ids = new Set([...ventas.map((v) => String(v.barbero)), ...pagos.map((p) => String(p.barbero))]);
   const usuarios = await Usuario.find(
-    soloBarbero ? { _id: soloBarbero } : { rol: 'barbero', $or: [{ activo: true }, { _id: { $in: [...ids] } }] },
+    soloBarbero
+      ? { _id: soloBarbero }
+      : { rol: 'barbero', $or: [{ activo: true, ...(local && { local }) }, { _id: { $in: [...ids] } }] },
   ).sort({ nombre: 1 });
 
   return usuarios.map((u) => {
@@ -80,8 +93,10 @@ router.get('/', async (req, res) => {
   const p = periodo.safeParse(req.query);
   if (!p.success) return res.status(400).json({ error: 'Período inválido' });
   // El barbero solo ve su propia liquidación.
-  const solo = req.auth!.rol === 'admin' ? undefined : req.auth!.uid;
-  const barberos = await liquidar(p.data.desde, p.data.hasta, solo);
+  const barberos =
+    req.auth!.rol === 'admin'
+      ? await liquidar(p.data.desde, p.data.hasta, { local: req.local })
+      : await liquidar(p.data.desde, p.data.hasta, { soloBarbero: req.auth!.uid });
   res.json({ barberos, total: barberos.reduce((s, b) => s + Math.max(0, b.saldo), 0) });
 });
 
@@ -91,7 +106,7 @@ router.post('/pagar', requireRol('admin'), async (req, res) => {
   if (!body.success) return res.status(400).json({ error: 'Datos inválidos' });
   const { desde, hasta, barberoId } = body.data;
 
-  const [liq] = await liquidar(desde, hasta, barberoId);
+  const [liq] = await liquidar(desde, hasta, { soloBarbero: barberoId, local: req.local });
   if (!liq) return res.status(404).json({ error: 'No existe ese barbero' });
   if (liq.enMano.total > 0) {
     return res.status(409).json({
@@ -101,6 +116,7 @@ router.post('/pagar', requireRol('admin'), async (req, res) => {
   if (liq.saldo <= 0) return res.status(409).json({ error: 'No hay nada pendiente de pago en este período' });
 
   const pago = await Pago.create({
+    local: req.local,
     barbero: barberoId,
     desde,
     hasta,
@@ -113,7 +129,7 @@ router.post('/pagar', requireRol('admin'), async (req, res) => {
 
 // Historial de pagos (para "Pagos que recibiste" del barbero).
 router.get('/pagos', async (req, res) => {
-  const filtro = req.auth!.rol === 'admin' ? {} : { barbero: req.auth!.uid };
+  const filtro = req.auth!.rol === 'admin' ? { local: req.local } : { barbero: req.auth!.uid };
   const pagos = await Pago.find(filtro).sort({ fecha: -1 }).limit(30).populate({ path: 'barbero', select: 'nombre' });
   res.json({ pagos });
 });

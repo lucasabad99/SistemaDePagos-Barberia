@@ -4,19 +4,25 @@ import { Usuario } from '../models/Usuario';
 import { Servicio } from '../models/Servicio';
 import { Producto } from '../models/Producto';
 import { Config } from '../models/Config';
+import { Local } from '../models/Local';
+import { prepararLocales } from './locales';
 
+// En un local trabaja uno solo (Leo, en Acuña) y en el otro los demás (Almagro).
 const usuarios = [
-  { nombre: 'Darwin', usuario: 'darwin', pin: '1234', rol: 'admin', comision: 0 },
-  { nombre: 'Matías', usuario: 'matias', pin: '1111', rol: 'barbero', comision: 50 },
-  { nombre: 'Nico', usuario: 'nico', pin: '2222', rol: 'barbero', comision: 50 },
-  { nombre: 'Leo', usuario: 'leo', pin: '3333', rol: 'barbero', comision: 45 },
+  { nombre: 'Darwin', usuario: 'darwin', pin: '1234', rol: 'admin', comision: 0, local: null },
+  { nombre: 'Matías', usuario: 'matias', pin: '1111', rol: 'barbero', comision: 50, local: 'Almagro' },
+  { nombre: 'Nico', usuario: 'nico', pin: '2222', rol: 'barbero', comision: 50, local: 'Almagro' },
+  { nombre: 'Leo', usuario: 'leo', pin: '3333', rol: 'barbero', comision: 45, local: 'Acuña' },
 ] as const;
+
+/** usuario → nombre del local, para asignar los barberos de ejemplo que ya existían sin local. */
+export const localesDemo = Object.fromEntries(usuarios.filter((u) => u.local).map((u) => [u.usuario, u.local!]));
 
 /** Hay datos de ejemplo en este entorno (local o staging). En producción, nunca. */
 export const hayDemo = () => env.NODE_ENV !== 'production' && (env.SEED_DEMO || env.NODE_ENV === 'development');
 
 /** Usuarios de ejemplo para los botones de "entrar rápido" del login. */
-export const usuariosDemo = () => usuarios.map(({ nombre, usuario, pin, rol }) => ({ nombre, usuario, pin, rol }));
+export const usuariosDemo = () => usuarios.map(({ nombre, usuario, pin, rol, local }) => ({ nombre, usuario, pin, rol, local }));
 
 const servicios = [
   { nombre: 'Corte', precio: 18000, orden: 1 },
@@ -37,21 +43,30 @@ const config = { negocio: 'Barbería Darwin', recargoPct: 10, comisionProducto: 
 export async function cargarDatosEjemplo() {
   if (env.NODE_ENV === 'production') throw new Error('Los datos de ejemplo no se cargan en producción.');
 
-  for (const { pin, ...u } of usuarios) {
+  await prepararLocales();
+  const locales = await Local.find();
+  const idLocal = new Map(locales.map((l) => [l.nombre, l._id]));
+
+  for (const { pin, local, ...u } of usuarios) {
     await Usuario.updateOne(
       { usuario: u.usuario },
       // Resetea el PIN, así que también cierra las sesiones abiertas de ese usuario.
-      { $set: { ...u, pinHash: await Usuario.hashPin(pin), activo: true }, $inc: { sesionVersion: 1 } },
+      {
+        $set: { ...u, local: local ? (idLocal.get(local) ?? null) : null, pinHash: await Usuario.hashPin(pin), activo: true },
+        $inc: { sesionVersion: 1 },
+      },
       { upsert: true },
     );
-    console.log(`  ✓ ${u.nombre} (${u.rol}) — usuario "${u.usuario}", PIN ${pin}`);
+    console.log(`  ✓ ${u.nombre} (${u.rol}${local ? `, ${local}` : ''}) — usuario "${u.usuario}", PIN ${pin}`);
   }
 
   for (const s of servicios) await Servicio.updateOne({ nombre: s.nombre }, { $set: s }, { upsert: true });
   console.log(`  ✓ ${servicios.length} servicios`);
-  // El stock solo se setea al crear el producto, para no pisar el stock real en staging.
-  for (const { stock, ...p } of productos)
-    await Producto.updateOne({ nombre: p.nombre }, { $set: p, $setOnInsert: { stock } }, { upsert: true });
+  // El stock solo se setea al crear el producto, para no pisar el stock real en staging. Cada local arranca con el mismo.
+  for (const { stock, ...p } of productos) {
+    const stockLocal = Object.fromEntries(locales.map((l) => [String(l._id), stock]));
+    await Producto.updateOne({ nombre: p.nombre }, { $set: p, $setOnInsert: { stockLocal } }, { upsert: true });
+  }
   console.log(`  ✓ ${productos.length} productos`);
   await Config.updateOne({ clave: 'general' }, { $set: config }, { upsert: true });
   console.log(`  ✓ configuración (${config.negocio})`);

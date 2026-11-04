@@ -5,9 +5,18 @@ const TOKEN_KEY = 'barberia.token';
 // y a un barbero en otra sin que se pisen. Además se recuerda la última sesión (localStorage)
 // para que una pestaña nueva o el navegador reabierto entren directo, sin pedir el PIN.
 // Los accesos van en try/catch porque en modo privado algunos navegadores bloquean el storage.
-const leer = (s: Storage) => { try { return s.getItem(TOKEN_KEY); } catch { return null; } };
-const escribir = (s: Storage, t: string) => { try { s.setItem(TOKEN_KEY, t); } catch { /* sin storage */ } };
-const borrar = (s: Storage) => { try { s.removeItem(TOKEN_KEY); } catch { /* sin storage */ } };
+const leer = (s: Storage, k = TOKEN_KEY) => { try { return s.getItem(k); } catch { return null; } };
+const escribir = (s: Storage, t: string, k = TOKEN_KEY) => { try { s.setItem(k, t); } catch { /* sin storage */ } };
+const borrar = (s: Storage, k = TOKEN_KEY) => { try { s.removeItem(k); } catch { /* sin storage */ } };
+
+// Local en el que está parado el dueño en esta pestaña. Viaja en cada pedido (X-Local).
+// Se olvida al entrar de nuevo: el dueño elige el local cada vez que inicia sesión.
+const LOCAL_KEY = 'barberia.local';
+export const localStore = {
+  get: () => leer(sessionStorage, LOCAL_KEY),
+  set: (id: string) => escribir(sessionStorage, id, LOCAL_KEY),
+  clear: () => borrar(sessionStorage, LOCAL_KEY),
+};
 
 export const tokenStore = {
   get: () => {
@@ -36,6 +45,7 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = tokenStore.get();
+  const local = localStore.get();
   let res: Response;
   try {
     res = await fetch(BASE + path, {
@@ -43,6 +53,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(local ? { 'X-Local': local } : {}),
         ...options.headers,
       },
     });
@@ -54,6 +65,11 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     // Token vencido: cerramos sesión y volvemos al login.
     tokenStore.clear();
     window.dispatchEvent(new Event('auth:expired'));
+  }
+  // El local guardado ya no vale (ej: se borró): el dueño vuelve a elegir.
+  if (res.status === 400 && data.codigo === 'ELEGIR_LOCAL') {
+    localStore.clear();
+    window.dispatchEvent(new Event('local:elegir'));
   }
   if (!res.ok) throw new ApiError(res.status, data.error ?? 'Error de conexión');
   return data as T;
@@ -72,6 +88,13 @@ export interface Usuario {
   rol: Rol;
   comision: number;
   activo: boolean;
+  /** id del local donde trabaja (null para el dueño) */
+  local: string | null;
+}
+
+export interface Local {
+  id: string;
+  nombre: string;
 }
 
 export interface Servicio {

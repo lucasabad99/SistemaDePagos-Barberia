@@ -10,6 +10,7 @@ const Sv = ({ children }: { children: ReactNode }) => (
 export const I = {
   plus: <Sv><path d="M12 5v14M5 12h14" /></Sv>,
   menu: <Sv><path d="M4 6h16M4 12h16M4 18h16" /></Sv>,
+  local: <Sv><path d="M3 9l1.5-5h15L21 9" /><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" /><path d="M5 11.5V20h14v-8.5" /><path d="M10 20v-5h4v5" /></Sv>,
   ventas: <Sv><path d="M4 4h16v5a3 3 0 0 0 0 6v5H4v-5a3 3 0 0 0 0-6z" /><path d="M10 4v16" strokeDasharray="2 3" /></Sv>,
   caja: <Sv><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" /></Sv>,
   barberos: <Sv><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12" /></Sv>,

@@ -26,6 +26,7 @@ const ventaSchema = new Schema(
   {
     num: { type: Number, required: true, unique: true },
     fecha: { type: Date, required: true, default: Date.now },
+    local: { type: Schema.Types.ObjectId, ref: 'Local', required: true },
     barbero: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
     creadoPor: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
     items: { type: [itemSchema], validate: (v: unknown[]) => v.length > 0 },
@@ -44,6 +45,7 @@ const ventaSchema = new Schema(
   { timestamps: true },
 );
 ventaSchema.index({ fecha: -1 });
+ventaSchema.index({ local: 1, fecha: -1 });
 ventaSchema.index({ barbero: 1, fecha: -1 });
 ventaSchema.index({ estado: 1, metodo: 1 });
 ventaSchema.set('toJSON', { transform: limpiarJSON });

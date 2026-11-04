@@ -17,6 +17,8 @@ const usuarioSchema = new Schema(
     // % que se lleva el barbero por cada servicio. El dueño no cobra comisión.
     comision: { type: Number, min: 0, max: 100, default: 50 },
     activo: { type: Boolean, default: true },
+    // Local donde trabaja el barbero. El dueño no tiene local fijo: elige en cuál entra.
+    local: { type: Schema.Types.ObjectId, ref: 'Local', default: null },
     // Se incrementa al cambiar el PIN o desactivar al usuario: invalida los tokens ya emitidos.
     sesionVersion: { type: Number, default: 0, select: false },
   },

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { api, post, tokenStore, Usuario } from './api';
+import { api, localStore, post, tokenStore, Usuario } from './api';
 
 interface AuthCtx {
   usuario: Usuario | null;
@@ -41,12 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (u: string, pin: string) => {
     const r = await post<{ token: string; usuario: Usuario }>('/auth/login', { usuario: u, pin });
     tokenStore.set(r.token);
+    localStore.clear(); // el dueño elige el local cada vez que entra
     setAviso('');
     setUsuario(r.usuario);
   };
 
   const logout = () => {
     tokenStore.clear();
+    localStore.clear();
     setAviso('');
     setUsuario(null);
   };

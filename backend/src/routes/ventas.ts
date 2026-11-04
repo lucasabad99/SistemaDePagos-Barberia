@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
-import { requireAuth, requireRol } from '../middleware/auth';
+import { requireAuth, requireLocal, requireRol } from '../middleware/auth';
 import { Venta, ESTADOS, METODOS, Estado } from '../models/Venta';
 import { Usuario } from '../models/Usuario';
 import { Servicio } from '../models/Servicio';
@@ -11,7 +11,7 @@ import { siguienteNumero } from '../models/Contador';
 import { env } from '../config/env';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, requireLocal);
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'id inválido');
 const BARBERO_POP = { path: 'barbero', select: 'nombre rol' };
@@ -37,6 +37,11 @@ router.post('/', async (req, res) => {
   const barberoId = esAdmin && body.barberoId ? body.barberoId : req.auth!.uid;
   const barbero = await Usuario.findById(barberoId);
   if (!barbero || !barbero.activo) return res.status(400).json({ error: 'Barbero no válido' });
+  const local = req.local!;
+  if (barbero.rol !== 'admin' && String(barbero.local) !== String(local)) {
+    return res.status(400).json({ error: `${barbero.nombre} es de otro local` });
+  }
+  const stockKey = `stockLocal.${local}`;
 
   const config = await getConfig();
   const items: { tipo: 'servicio' | 'producto'; refId: Types.ObjectId; nombre: string; precio: number; cant: number }[] = [];
@@ -47,20 +52,20 @@ router.post('/', async (req, res) => {
     items.push({ tipo: 'servicio', refId: s._id, nombre: s.nombre, precio: s.precio, cant: 1 });
   }
 
-  // Descuenta stock de forma condicional (stock >= cant). Si alguno falla, devuelve lo ya descontado.
+  // Descuenta el stock de este local de forma condicional (stock >= cant). Si alguno falla, devuelve lo ya descontado.
   const descontados: { id: Types.ObjectId; cant: number }[] = [];
   const devolverStock = () =>
-    Promise.all(descontados.map((d) => Producto.updateOne({ _id: d.id }, { $inc: { stock: d.cant } })));
+    Promise.all(descontados.map((d) => Producto.updateOne({ _id: d.id }, { $inc: { [stockKey]: d.cant } })));
   for (const { id, cant } of body.productos) {
     const p = await Producto.findOneAndUpdate(
-      { _id: id, activo: true, stock: { $gte: cant } },
-      { $inc: { stock: -cant } },
+      { _id: id, activo: true, [stockKey]: { $gte: cant } },
+      { $inc: { [stockKey]: -cant } },
       { returnDocument: 'after' },
     );
     if (!p) {
       await devolverStock();
       const existe = await Producto.findById(id);
-      return res.status(409).json({ error: existe ? `No hay stock suficiente de ${existe.nombre}` : 'Producto no disponible' });
+      return res.status(409).json({ error: existe ? `No hay stock suficiente de ${existe.nombre} en este local` : 'Producto no disponible' });
     }
     descontados.push({ id: p._id, cant });
     items.push({ tipo: 'producto', refId: p._id, nombre: p.nombre, precio: p.precio, cant });
@@ -84,6 +89,7 @@ router.post('/', async (req, res) => {
     const venta = await Venta.create({
       num: await siguienteNumero('venta'),
       fecha: ahora,
+      local,
       barbero: barbero._id,
       creadoPor: req.auth!.uid,
       items,
@@ -123,7 +129,10 @@ router.get('/', async (req, res) => {
   if (q.estado) filtro.estado = q.estado;
   // El barbero solo ve sus propios papelitos, pida lo que pida.
   if (req.auth!.rol !== 'admin') filtro.barbero = req.auth!.uid;
-  else if (q.barberoId) filtro.barbero = q.barberoId;
+  else {
+    filtro.local = req.local; // el dueño ve solo el local en el que está parado
+    if (q.barberoId) filtro.barbero = q.barberoId;
+  }
 
   const ventas = await Venta.find(filtro).sort({ fecha: -1 }).limit(1000).populate(BARBERO_POP);
   res.json({ ventas });
@@ -133,6 +142,7 @@ router.get('/', async (req, res) => {
 router.get('/en-mano', async (req, res) => {
   const match: Record<string, unknown> = { metodo: 'efectivo', estado: 'en_barbero' };
   if (req.auth!.rol !== 'admin') match.barbero = new Types.ObjectId(req.auth!.uid);
+  else match.local = req.local;
   const filas = await Venta.aggregate<{ _id: Types.ObjectId; cantidad: number; total: number }>([
     { $match: match },
     { $group: { _id: '$barbero', cantidad: { $sum: 1 }, total: { $sum: '$total' } } },
@@ -150,6 +160,7 @@ router.get('/calendario', async (req, res) => {
   if (!q.success) return res.status(400).json({ error: 'Rango inválido' });
   const match: Record<string, unknown> = { fecha: { $gte: q.data.desde, $lt: q.data.hasta }, estado: { $ne: 'anulada' } };
   if (req.auth!.rol !== 'admin') match.barbero = new Types.ObjectId(req.auth!.uid);
+  else match.local = req.local;
 
   const dias = await Venta.aggregate<{ _id: string; papelitos: number; servicios: number; total: number; comision: number; pendientes: number }>([
     { $match: match },
@@ -174,7 +185,7 @@ router.get('/calendario', async (req, res) => {
 router.post('/recibir', requireRol('admin'), async (req, res) => {
   const parsed = z.object({ barberoId: objectId }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Falta el barbero' });
-  const pendientes = await Venta.find({ barbero: parsed.data.barberoId, metodo: 'efectivo', estado: 'en_barbero' }).select('_id total');
+  const pendientes = await Venta.find({ local: req.local, barbero: parsed.data.barberoId, metodo: 'efectivo', estado: 'en_barbero' }).select('_id total');
   if (!pendientes.length) return res.json({ cantidad: 0, total: 0 });
   const r = await Venta.updateMany(
     { _id: { $in: pendientes.map((v) => v._id) }, estado: 'en_barbero' },
@@ -187,7 +198,7 @@ router.post('/recibir', requireRol('admin'), async (req, res) => {
 router.post('/:id/verificar', requireRol('admin'), async (req, res) => {
   if (!objectId.safeParse(req.params.id).success) return res.status(400).json({ error: 'id inválido' });
   const venta = await Venta.findOneAndUpdate(
-    { _id: req.params.id, metodo: 'transferencia', estado: 'pendiente' },
+    { _id: req.params.id, local: req.local, metodo: 'transferencia', estado: 'pendiente' },
     { $set: { estado: 'verificado', verificadoEn: new Date() } },
     { returnDocument: 'after' },
   ).populate(BARBERO_POP);
@@ -200,13 +211,16 @@ router.post('/:id/anular', requireRol('admin'), async (req, res) => {
   if (!objectId.safeParse(req.params.id).success) return res.status(400).json({ error: 'id inválido' });
   const motivo = z.string().trim().max(200).optional().safeParse(req.body?.motivo);
   const venta = await Venta.findOneAndUpdate(
-    { _id: req.params.id, estado: { $ne: 'anulada' } },
+    { _id: req.params.id, local: req.local, estado: { $ne: 'anulada' } },
     { $set: { estado: 'anulada', anuladaEn: new Date(), motivoAnulacion: motivo.success ? motivo.data || null : null } },
     { returnDocument: 'after' },
   ).populate(BARBERO_POP);
   if (!venta) return res.status(409).json({ error: 'El papelito ya estaba anulado o no existe' });
   await Promise.all(
-    venta.items.filter((x) => x.tipo === 'producto').map((x) => Producto.updateOne({ _id: x.refId }, { $inc: { stock: x.cant } })),
+    // El stock vuelve al local donde se vendió.
+    venta.items
+      .filter((x) => x.tipo === 'producto')
+      .map((x) => Producto.updateOne({ _id: x.refId }, { $inc: { [`stockLocal.${venta.local}`]: x.cant } })),
   );
   res.json({ venta });
 });

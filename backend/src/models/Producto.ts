@@ -6,7 +6,8 @@ const productoSchema = new Schema(
     nombre: { type: String, required: true, trim: true, unique: true },
     precio: { type: Number, required: true, min: 0 },
     costo: { type: Number, default: 0, min: 0 },
-    stock: { type: Number, default: 0, min: 0 },
+    // Stock de cada local: { [idLocal]: cantidad }. El precio es el mismo en todos los locales.
+    stockLocal: { type: Map, of: Number, default: {} },
     min: { type: Number, default: 0, min: 0 }, // stock mínimo antes de avisar "reponer"
     activo: { type: Boolean, default: true },
   },
