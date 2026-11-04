@@ -109,6 +109,25 @@ export interface Producto {
   stock: number;
   min: number;
 }
+/** Producto como lo ve el dueño en Inventario (stock del local en el que está parado). */
+export interface ProductoInv extends Producto {
+  costo: number;
+  activo: boolean;
+  vendidosMes: number;
+  otrosLocales: { id: string; nombre: string; stock: number }[];
+}
+export type TipoMovimiento = 'ingreso' | 'ajuste' | 'venta' | 'anulacion';
+export interface MovimientoStock {
+  id: string;
+  fecha: string;
+  tipo: TipoMovimiento;
+  cant: number;
+  stock: number | null;
+  costo: number | null;
+  nota: string | null;
+  num: number | null;
+  usuario: { id: string; nombre: string } | null;
+}
 export interface Config {
   negocio: string;
   recargoPct: number;

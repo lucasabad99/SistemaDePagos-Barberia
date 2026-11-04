@@ -48,6 +48,15 @@ La barbería tiene dos locales (**Acuña** y **Almagro**), con los números sepa
 - Los precios son los mismos en los dos locales; el stock de productos es de cada local.
 - Al arrancar, el servidor crea los locales si no existen y le asigna local a los datos anteriores (`backend/src/seed/locales.ts`).
 
+### Inventario
+
+Sección *Inventario* del dueño (API en `/api/productos`, solo admin), siempre del local elegido:
+
+- **Alta, edición y baja** de productos. El producto, su nombre y su precio son de los dos locales; el stock inicial que se carga es del local actual (el otro arranca en 0). Dar de baja lo saca de "Anotar corte" sin borrar el historial.
+- **Entró mercadería** (suma; si trae costo, actualiza el costo del producto) y **Corregir** (se cuenta lo que hay y se anota la diferencia).
+- Cada venta descuenta sola y anular un papelito devuelve el stock. Todo queda en el **historial** del producto por local (colección `movimientos_stock`).
+- Avisa *Reponer* cuando el stock llega al mínimo, y muestra el stock del otro local y lo vendido en el mes.
+
 ## Instalar en el celular (PWA)
 
 La app se instala desde el navegador, sin tiendas. Abrir la URL del entorno y:
@@ -102,7 +111,8 @@ El seed se niega a correr con `NODE_ENV=production`.
 3. ✅ Barberos: alta, edición, comisión, activar/desactivar, PIN (el dueño lo resetea; cada uno cambia el suyo). Desactivar o cambiar el PIN cierra la sesión al instante
 4. ✅ Pagos semanales (lunes a domingo): "A pagar esta semana" en la pantalla principal, sección Pagos para registrar cada pago (bloqueado si el barbero tiene efectivo sin entregar), Resumen con los números del negocio, calendario para el dueño y "Mis cobros" con calendario para el barbero
 5. ✅ Dos locales (Acuña y Almagro): el dueño elige en cuál trabaja, cada barbero pertenece a uno, stock por local
-5. Caja: apertura/cierre y arqueo
-6. Inventario, compras y gastos
-7. Impuestos (tope de monotributo, resumen para el contador)
-8. Clientes y membresías con QR
+6. ✅ Inventario: ABM de productos, entradas de mercadería, correcciones e historial de movimientos por local
+7. Caja: apertura/cierre y arqueo
+8. Compras a proveedores y gastos
+9. Impuestos (tope de monotributo, resumen para el contador)
+10. Clientes y membresías con QR

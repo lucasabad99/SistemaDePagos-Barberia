@@ -6,6 +6,7 @@ import { Venta, ESTADOS, METODOS, Estado } from '../models/Venta';
 import { Usuario } from '../models/Usuario';
 import { Servicio } from '../models/Servicio';
 import { Producto } from '../models/Producto';
+import { MovimientoStock } from '../models/MovimientoStock';
 import { getConfig } from '../models/Config';
 import { siguienteNumero } from '../models/Contador';
 import { env } from '../config/env';
@@ -53,7 +54,7 @@ router.post('/', async (req, res) => {
   }
 
   // Descuenta el stock de este local de forma condicional (stock >= cant). Si alguno falla, devuelve lo ya descontado.
-  const descontados: { id: Types.ObjectId; cant: number }[] = [];
+  const descontados: { id: Types.ObjectId; cant: number; stock: number }[] = [];
   const devolverStock = () =>
     Promise.all(descontados.map((d) => Producto.updateOne({ _id: d.id }, { $inc: { [stockKey]: d.cant } })));
   for (const { id, cant } of body.productos) {
@@ -67,7 +68,7 @@ router.post('/', async (req, res) => {
       const existe = await Producto.findById(id);
       return res.status(409).json({ error: existe ? `No hay stock suficiente de ${existe.nombre} en este local` : 'Producto no disponible' });
     }
-    descontados.push({ id: p._id, cant });
+    descontados.push({ id: p._id, cant, stock: p.stockLocal?.get(String(local)) ?? 0 });
     items.push({ tipo: 'producto', refId: p._id, nombre: p.nombre, precio: p.precio, cant });
   }
 
@@ -102,6 +103,11 @@ router.post('/', async (req, res) => {
       entregadoEn: estado === 'entregado' ? ahora : null,
       recibidoPor: estado === 'entregado' ? req.auth!.uid : null,
     });
+    if (descontados.length) {
+      await MovimientoStock.insertMany(
+        descontados.map((d) => ({ local, producto: d.id, tipo: 'venta', cant: -d.cant, stock: d.stock, venta: venta._id, num: venta.num, usuario: barbero._id })),
+      );
+    }
     await venta.populate(BARBERO_POP);
     res.status(201).json({ venta });
   } catch (err) {
@@ -216,11 +222,26 @@ router.post('/:id/anular', requireRol('admin'), async (req, res) => {
     { returnDocument: 'after' },
   ).populate(BARBERO_POP);
   if (!venta) return res.status(409).json({ error: 'El papelito ya estaba anulado o no existe' });
+  // El stock vuelve al local donde se vendió, y queda anotado en el historial del producto.
+  const key = `stockLocal.${venta.local}`;
   await Promise.all(
-    // El stock vuelve al local donde se vendió.
     venta.items
       .filter((x) => x.tipo === 'producto')
-      .map((x) => Producto.updateOne({ _id: x.refId }, { $inc: { [`stockLocal.${venta.local}`]: x.cant } })),
+      .map(async (x) => {
+        const p = await Producto.findByIdAndUpdate(x.refId, { $inc: { [key]: x.cant } }, { returnDocument: 'after' });
+        if (!p) return;
+        await MovimientoStock.create({
+          local: venta.local,
+          producto: p._id,
+          tipo: 'anulacion',
+          cant: x.cant,
+          stock: p.stockLocal?.get(String(venta.local)) ?? 0,
+          venta: venta._id,
+          num: venta.num,
+          nota: venta.motivoAnulacion,
+          usuario: req.auth!.uid,
+        });
+      }),
   );
   res.json({ venta });
 });

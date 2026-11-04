@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { env } from './config/env';
 import authRoutes from './routes/auth';
 import catalogoRoutes from './routes/catalogo';
+import productosRoutes from './routes/productos';
 import localesRoutes from './routes/locales';
 import usuariosRoutes from './routes/usuarios';
 import ventasRoutes from './routes/ventas';
@@ -29,6 +30,7 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/locales', localesRoutes);
   app.use('/api/catalogo', catalogoRoutes);
+  app.use('/api/productos', productosRoutes);
   app.use('/api/usuarios', usuariosRoutes);
   app.use('/api/ventas', ventasRoutes);
   app.use('/api/liquidacion', liquidacionRoutes);
