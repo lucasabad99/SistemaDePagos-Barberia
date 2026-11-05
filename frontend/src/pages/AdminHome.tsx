@@ -11,8 +11,9 @@ import { Resumen } from './admin/Resumen';
 import { Barberos } from './admin/Barberos';
 import { ElegirLocal } from './admin/ElegirLocal';
 import { Inventario } from './admin/Inventario';
+import { Servicios } from './admin/Servicios';
 
-type Vista = 'hoy' | 'pagos' | 'resumen' | 'barberos' | 'inventario';
+type Vista = 'hoy' | 'pagos' | 'resumen' | 'barberos' | 'servicios' | 'inventario';
 
 // Secciones del menú. Las que no tienen `listo` todavía no se construyeron.
 const NAV: { k: Vista | string; l: string; ic: keyof typeof I; listo?: boolean }[] = [
@@ -20,6 +21,7 @@ const NAV: { k: Vista | string; l: string; ic: keyof typeof I; listo?: boolean }
   { k: 'pagos', l: 'Pagos', ic: 'liquidacion', listo: true },
   { k: 'resumen', l: 'Resumen', ic: 'chart', listo: true },
   { k: 'barberos', l: 'Barberos', ic: 'barberos', listo: true },
+  { k: 'servicios', l: 'Servicios', ic: 'money', listo: true },
   { k: 'inventario', l: 'Inventario', ic: 'inventario', listo: true },
   { k: 'caja', l: 'Caja', ic: 'caja' },
   { k: 'gastos', l: 'Gastos', ic: 'gastos' },
@@ -135,6 +137,7 @@ export function AdminHome() {
           {vista === 'pagos' && <Pagos key={pagosDesde ?? 'actual'} lunesInicial={pagosDesde} />}
           {vista === 'resumen' && <Resumen />}
           {vista === 'barberos' && <Barberos locales={locales.data ?? []} localActual={local} />}
+          {vista === 'servicios' && <Servicios />}
           {vista === 'inventario' && <Inventario localActual={local} />}
         </div>
       </div>
