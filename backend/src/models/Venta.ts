@@ -39,6 +39,9 @@ const ventaSchema = new Schema(
     entregadoEn: { type: Date, default: null },
     recibidoPor: { type: Schema.Types.ObjectId, ref: 'Usuario', default: null },
     verificadoEn: { type: Date, default: null },
+    // Quién confirmó la transferencia: el dueño a mano o la app al encontrarla en Mercado Pago.
+    verificadoPor: { type: String, enum: ['dueño', 'mercadopago', null], default: null },
+    cobroMP: { type: Schema.Types.ObjectId, ref: 'CobroMP', default: null },
     anuladaEn: { type: Date, default: null },
     motivoAnulacion: { type: String, default: null },
   },

@@ -12,6 +12,11 @@ const schema = z.object({
   SEED_DEMO: z.stringbool().default(false),
   // Zona horaria del negocio: define en qué día cae cada papelito (el servidor de Render corre en UTC).
   TZ_NEGOCIO: z.string().default('America/Argentina/Buenos_Aires'),
+  // Mercado Pago (opcional): Access Token de producción de la cuenta donde llegan las transferencias.
+  // Con esto la app lee lo recibido (solo lectura) y confirma sola las transferencias de los papelitos.
+  MP_ACCESS_TOKEN: z.string().trim().min(1).optional(),
+  MP_API_URL: z.string().default('https://api.mercadopago.com'), // se cambia solo para pruebas
+  MP_CADA_MS: z.coerce.number().default(30_000), // cada cuánto como mucho se consulta Mercado Pago
 });
 
 const parsed = schema.safeParse(process.env);

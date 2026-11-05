@@ -10,7 +10,7 @@ export function EstadoPill({ v }: { v: Venta }) {
       <span className="pill warn">Lo tiene {v.barbero.nombre}</span>
     );
   return v.estado === 'verificado' ? (
-    <span className="pill ok">Transferencia acreditada</span>
+    <span className="pill ok">{v.verificadoPor === 'mercadopago' ? 'Acreditada · Mercado Pago' : 'Transferencia acreditada'}</span>
   ) : (
     <span className="pill blue">Confirmar en banco</span>
   );

@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx src/scripts/seed.ts",
+    "mp:probar": "tsx src/scripts/mp-probar.ts",
     "typecheck": "tsc --noEmit"
   },
   "engines": {

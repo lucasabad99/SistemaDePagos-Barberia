@@ -7,6 +7,7 @@ import { Usuario } from '../models/Usuario';
 import { Servicio } from '../models/Servicio';
 import { Producto } from '../models/Producto';
 import { MovimientoStock } from '../models/MovimientoStock';
+import { asignar, candidatos, estadoMP, liberarCobro, mpActivo, sincronizarMP } from '../services/mercadopago';
 import { getConfig } from '../models/Config';
 import { siguienteNumero } from '../models/Contador';
 import { env } from '../config/env';
@@ -140,6 +141,7 @@ router.get('/', async (req, res) => {
     if (q.barberoId) filtro.barbero = q.barberoId;
   }
 
+  await sincronizarMP(); // si está conectado Mercado Pago, antes confirma las transferencias que ya llegaron
   const ventas = await Venta.find(filtro).sort({ fecha: -1 }).limit(1000).populate(BARBERO_POP);
   res.json({ ventas });
 });
@@ -201,15 +203,44 @@ router.post('/recibir', requireRol('admin'), async (req, res) => {
 });
 
 // El dueño vio la transferencia acreditada en su cuenta.
+// Opcional: `cobroId`, la transferencia de Mercado Pago que el dueño eligió como la de este papelito.
 router.post('/:id/verificar', requireRol('admin'), async (req, res) => {
   if (!objectId.safeParse(req.params.id).success) return res.status(400).json({ error: 'id inválido' });
+  const cobro = objectId.optional().safeParse(req.body?.cobroId);
+  if (!cobro.success) return res.status(400).json({ error: 'id inválido' });
+  const id = String(req.params.id);
+  const filtro = { _id: id, local: req.local, metodo: 'transferencia' as const, estado: 'pendiente' as const };
+
+  if (cobro.data) {
+    if (!(await Venta.exists(filtro))) return res.status(409).json({ error: 'La transferencia ya estaba confirmada o no existe' });
+    if (!(await asignar(id, cobro.data, 'dueño'))) {
+      return res.status(409).json({ error: 'Esa transferencia ya se usó para otro papelito' });
+    }
+    return res.json({ venta: await Venta.findById(id).populate(BARBERO_POP) });
+  }
+
   const venta = await Venta.findOneAndUpdate(
-    { _id: req.params.id, local: req.local, metodo: 'transferencia', estado: 'pendiente' },
-    { $set: { estado: 'verificado', verificadoEn: new Date() } },
+    filtro,
+    { $set: { estado: 'verificado', verificadoEn: new Date(), verificadoPor: 'dueño' } },
     { returnDocument: 'after' },
   ).populate(BARBERO_POP);
   if (!venta) return res.status(409).json({ error: 'La transferencia ya estaba confirmada o no existe' });
   res.json({ venta });
+});
+
+// Estado de la conexión con Mercado Pago (para mostrar en la pantalla del dueño).
+router.get('/mp/estado', requireRol('admin'), (_req, res) => {
+  res.json(estadoMP());
+});
+
+// Transferencias recibidas en Mercado Pago que podrían ser de este papelito pendiente.
+router.get('/:id/cobros-mp', requireRol('admin'), async (req, res) => {
+  if (!objectId.safeParse(req.params.id).success) return res.status(400).json({ error: 'id inválido' });
+  if (!mpActivo()) return res.json({ activo: false, cobros: [] });
+  const venta = await Venta.findOne({ _id: req.params.id, local: req.local, metodo: 'transferencia', estado: 'pendiente' }).select('fecha total');
+  if (!venta) return res.json({ activo: true, cobros: [] });
+  await sincronizarMP();
+  res.json({ activo: true, cobros: await candidatos(venta) });
 });
 
 // Corrige un error de carga: el papelito queda registrado como anulado y el stock vuelve.
@@ -222,6 +253,7 @@ router.post('/:id/anular', requireRol('admin'), async (req, res) => {
     { returnDocument: 'after' },
   ).populate(BARBERO_POP);
   if (!venta) return res.status(409).json({ error: 'El papelito ya estaba anulado o no existe' });
+  await liberarCobro(venta.cobroMP); // la transferencia de Mercado Pago queda libre para otro papelito
   // El stock vuelve al local donde se vendió, y queda anotado en el historial del producto.
   const key = `stockLocal.${venta.local}`;
   await Promise.all(

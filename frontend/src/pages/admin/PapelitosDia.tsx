@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, Catalogo, EnMano, Liquidacion, post, Usuario, Venta } from '../../lib/api';
+import { api, Catalogo, CobroMP, EnMano, EstadoMP, Liquidacion, post, Usuario, Venta } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useToast } from '../../lib/toast';
 import { addDays, dayKey, dayRange, fmt, initials, longDate, monthKey, plural, sum, weekRange, weekStart } from '../../lib/format';
@@ -49,6 +49,7 @@ export function PapelitosDia({ irAPagos }: { irAPagos: (lunes?: string) => void 
   );
   const mano = useData(() => api<{ enMano: EnMano[] }>('/ventas/en-mano'), [], POLL);
   const pendientes = useData(() => api<{ ventas: Venta[] }>('/ventas?estado=pendiente'), [], POLL);
+  const mp = useData(() => api<EstadoMP>('/ventas/mp/estado'), [], POLL);
 
   const recargar = () => {
     semana.reload();
@@ -68,9 +69,9 @@ export function PapelitosDia({ irAPagos }: { irAPagos: (lunes?: string) => void 
   const filasSemana = (semana.data?.barberos ?? []).filter((b) => b.comision > 0 || b.saldo !== 0);
   const debePasada = pasada.data?.total ?? 0;
 
-  async function verificar(v: Venta) {
+  async function verificar(v: Venta, cobroId?: string) {
     try {
-      await post(`/ventas/${v.id}/verificar`);
+      await post(`/ventas/${v.id}/verificar`, cobroId ? { cobroId } : undefined);
       toast(`Nº${v.num}: transferencia acreditada`);
       setHoja(null);
       recargar();
@@ -148,7 +149,13 @@ export function PapelitosDia({ irAPagos }: { irAPagos: (lunes?: string) => void 
           {pend.length > 0 && (
             <div className="card">
               <CardH t="Transferencias para confirmar" ic="ventas" cls="blue" right={<span className="pill blue">{pend.length}</span>} />
-              <p className="small" style={{ margin: 0 }}>Tocá el papelito cuando veas la plata en tu cuenta.</p>
+              <p className="small" style={{ margin: 0 }}>
+                {mp.data?.activo
+                  ? mp.data.error
+                    ? `No se pudo revisar Mercado Pago (${mp.data.error}). Mientras tanto, confirmalas a mano.`
+                    : 'Se confirman solas cuando la plata llega a Mercado Pago. Si alguna no se confirma (otro monto, dos iguales), tocala y elegí la transferencia.'
+                  : 'Tocá el papelito cuando veas la plata en tu cuenta.'}
+              </p>
               <div className="tickets">
                 {pend.map((v) => (
                   <Ticket key={v.id} v={v} onClick={() => setHoja({ tipo: 'detalle', venta: v })} />
@@ -238,7 +245,7 @@ export function PapelitosDia({ irAPagos }: { irAPagos: (lunes?: string) => void 
         <DetalleSheet
           v={hoja.venta}
           onClose={() => setHoja(null)}
-          onVerificar={() => verificar(hoja.venta)}
+          onVerificar={(cobroId) => verificar(hoja.venta, cobroId)}
           onAnulada={() => {
             toast(`Nº${hoja.venta.num} anulado`);
             setHoja(null);
@@ -250,7 +257,7 @@ export function PapelitosDia({ irAPagos }: { irAPagos: (lunes?: string) => void 
   );
 }
 
-function DetalleSheet({ v, onClose, onVerificar, onAnulada }: { v: Venta; onClose: () => void; onVerificar: () => void; onAnulada: () => void }) {
+function DetalleSheet({ v, onClose, onVerificar, onAnulada }: { v: Venta; onClose: () => void; onVerificar: (cobroId?: string) => void; onAnulada: () => void }) {
   const toast = useToast();
   const [confirmando, setConfirmando] = useState(false);
   const [motivo, setMotivo] = useState('');
@@ -300,8 +307,9 @@ function DetalleSheet({ v, onClose, onVerificar, onAnulada }: { v: Venta; onClos
       </div>
       {v.estado === 'anulada' && v.motivoAnulacion && <div className="note"><b>Motivo:</b> {v.motivoAnulacion}</div>}
 
+      {v.estado === 'pendiente' && <CobrosMPSugeridos v={v} onElegir={(id) => onVerificar(id)} />}
       {v.estado === 'pendiente' && (
-        <button className="big" onClick={onVerificar}>Ya la vi en el banco · {fmt(v.total)}</button>
+        <button className="big" onClick={() => onVerificar()}>Ya la vi en el banco · {fmt(v.total)}</button>
       )}
       {v.estado !== 'anulada' &&
         (confirmando ? (
@@ -320,5 +328,42 @@ function DetalleSheet({ v, onClose, onVerificar, onAnulada }: { v: Venta; onClos
         ))}
       <button className="btn ghost" onClick={onClose}>Cerrar</button>
     </Sheet>
+  );
+}
+
+/* ---------- Transferencias de Mercado Pago que pueden ser de este papelito ---------- */
+const MEDIO: Record<CobroMP['medio'], string> = { banco: 'desde un banco', mercadopago: 'desde Mercado Pago', debin: 'DEBIN', otro: '' };
+const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+function CobrosMPSugeridos({ v, onElegir }: { v: Venta; onElegir: (cobroId: string) => void }) {
+  const r = useData(() => api<{ activo: boolean; cobros: CobroMP[] }>(`/ventas/${v.id}/cobros-mp`), [v.id]);
+  if (!r.data?.activo) return null;
+  const cobros = r.data.cobros;
+  return (
+    <div className="card">
+      <span className="eyebrow">Recibido en Mercado Pago a esa hora</span>
+      {!cobros.length ? (
+        <p className="small" style={{ margin: 0 }}>Todavía no llegó ninguna transferencia sin asignar cerca de esa hora. Si la ves en otra cuenta, confirmala a mano.</p>
+      ) : (
+        <div>
+          {cobros.map((c) => (
+            <div className="li" key={c.id}>
+              <div className="grow">
+                <div className="name num" style={{ color: c.mismoMonto ? undefined : 'var(--muted)' }}>
+                  {fmt(c.monto)}
+                  {!c.mismoMonto && <span className="small"> · otro monto</span>}
+                </div>
+                <div className="small">
+                  {hora(c.fecha)}
+                  {c.pagador && ` · ${c.pagador}`}
+                  {MEDIO[c.medio] && ` · ${MEDIO[c.medio]}`}
+                </div>
+              </div>
+              <button className={'btn sm' + (c.mismoMonto ? ' okb' : '')} onClick={() => onElegir(c.id)}>Es esta</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

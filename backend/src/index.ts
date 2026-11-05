@@ -3,6 +3,7 @@ import { connectDB } from './config/db';
 import { createApp } from './app';
 import { hayDemo, localesDemo, sembrarSiVacia } from './seed/datosEjemplo';
 import { prepararLocales } from './seed/locales';
+import { mpActivo, sincronizarMP } from './services/mercadopago';
 
 async function main() {
   await connectDB();
@@ -12,6 +13,11 @@ async function main() {
   createApp().listen(env.PORT, () => {
     console.log(`API escuchando en http://localhost:${env.PORT} (${env.NODE_ENV})`);
   });
+  // Mientras el servidor está despierto, revisa Mercado Pago cada minuto aunque nadie tenga la app abierta.
+  if (mpActivo()) {
+    console.log('Mercado Pago conectado: las transferencias se confirman solas');
+    setInterval(() => void sincronizarMP(0), 60_000).unref();
+  }
 }
 
 main().catch((err) => {

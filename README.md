@@ -57,6 +57,16 @@ Sección *Inventario* del dueño (API en `/api/productos`, solo admin), siempre 
 - Cada venta descuenta sola y anular un papelito devuelve el stock. Todo queda en el **historial** del producto por local (colección `movimientos_stock`).
 - Avisa *Reponer* cuando el stock llega al mínimo, y muestra el stock del otro local y lo vendido en el mes.
 
+### Mercado Pago (transferencias que se confirman solas)
+
+Opcional. Con la variable `MP_ACCESS_TOKEN` (Access Token de **producción** de la cuenta donde llegan las transferencias, `APP_USR-...`), el servidor **lee** lo recibido en esa cuenta y confirma solos los papelitos por transferencia. Es solo lectura: no cobra ni usa el checkout, así que no hay comisión ([backend/src/services/mercadopago.ts](backend/src/services/mercadopago.ts)).
+
+- Se consulta `GET /v1/payments/search` al mirar los papelitos (como mucho cada 30 s) y cada minuto mientras el servidor está despierto. Solo si hay transferencias pendientes.
+- Cuentan las recibidas y aprobadas: desde bancos al CVU/alias, desde otra cuenta de Mercado Pago y DEBIN.
+- Un papelito se confirma solo cuando hay **una única** transferencia del **mismo monto** (con recargo) entre 1 h antes y 3 h después, y esa transferencia no puede ser de otro papelito. Si hay dudas (dos iguales, otro monto), el dueño ve las transferencias candidatas en el papelito y elige con "Es esta". Siempre queda "Ya la vi en el banco" para confirmar a mano.
+- Cada transferencia se usa para un solo papelito; anular el papelito la libera.
+- El token se carga en Render (*Environment*), nunca en el repo. Para probar qué devuelve la API con una cuenta: `$env:MP_ACCESS_TOKEN="APP_USR-..."; npm --prefix backend run mp:probar` (solo lectura).
+
 ## Instalar en el celular (PWA)
 
 La app se instala desde el navegador, sin tiendas. Abrir la URL del entorno y:

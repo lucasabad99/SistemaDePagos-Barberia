@@ -155,6 +155,23 @@ export interface Venta {
   estado: EstadoVenta;
   entregadoEn: string | null;
   motivoAnulacion: string | null;
+  /** quién confirmó la transferencia: el dueño a mano o la app al encontrarla en Mercado Pago */
+  verificadoPor?: 'dueño' | 'mercadopago' | null;
+}
+/** Plata recibida en la cuenta de Mercado Pago, candidata a ser la de un papelito. */
+export interface CobroMP {
+  id: string;
+  fecha: string;
+  monto: number;
+  pagador: string | null;
+  medio: 'mercadopago' | 'banco' | 'debin' | 'otro';
+  mismoMonto: boolean;
+}
+export interface EstadoMP {
+  activo: boolean;
+  cuenta: string | null;
+  ultimaSync: string | null;
+  error: string | null;
 }
 export interface Pago {
   id: string;
